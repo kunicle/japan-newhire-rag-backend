@@ -1,5 +1,6 @@
 package com.teamproject.japan_newhire_rag_backend.document.access;
 
+import com.teamproject.japan_newhire_rag_backend.document.access.DocumentAccessRule.AccessScope;
 import com.teamproject.japan_newhire_rag_backend.document.access.DocumentAccessRule.ConditionOperator;
 
 public class DocumentAccessEvaluator {
@@ -9,10 +10,10 @@ public class DocumentAccessEvaluator {
             throw new IllegalArgumentException("user와 rule은 null일 수 없습니다.");
         }
         if (!rule.active()) {
-            return true;
-        }
-        if (rule.newEmployeeOnly() && !user.isNewEmployee()) {
             return false;
+        }
+        if (rule.accessScope() == AccessScope.ALL) {
+            return true;
         }
 
         int evaluatedConditionCount = 0;
@@ -42,8 +43,15 @@ public class DocumentAccessEvaluator {
             }
         }
 
+        if (rule.newEmployeeOnly()) {
+            evaluatedConditionCount++;
+            if (user.isNewEmployee()) {
+                satisfiedConditionCount++;
+            }
+        }
+
         if (evaluatedConditionCount == 0) {
-            return true;
+            return false;
         }
         if (rule.conditionOperator() == ConditionOperator.AND) {
             return satisfiedConditionCount == evaluatedConditionCount;
