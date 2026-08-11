@@ -23,6 +23,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AppUser extends BaseEntity {
 
+    private static final int MAX_FAILED_LOGIN_ATTEMPTS = 5;
+    private static final long LOCK_DURATION_MINUTES = 10;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "app_user_id")
@@ -49,4 +52,32 @@ public class AppUser extends BaseEntity {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    public void recordLoginFailure(LocalDateTime attemptedAt) {
+        failedLoginCount++;
+
+        if (failedLoginCount >= MAX_FAILED_LOGIN_ATTEMPTS) {
+            accountStatus = AccountStatus.LOCKED;
+            lockedUntil = attemptedAt.plusMinutes(LOCK_DURATION_MINUTES);
+        }
+    }
+
+    public void recordLoginSuccess(LocalDateTime loggedInAt) {
+        failedLoginCount = 0;
+        lockedUntil = null;
+        lastLoginAt = loggedInAt;
+    }
+
+    public boolean unlockIfExpired(LocalDateTime currentTime) {
+        if (accountStatus != AccountStatus.LOCKED
+                || lockedUntil == null
+                || lockedUntil.isAfter(currentTime)) {
+            return false;
+        }
+
+        accountStatus = AccountStatus.ACTIVE;
+        failedLoginCount = 0;
+        lockedUntil = null;
+        return true;
+    }
 }
