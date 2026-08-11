@@ -63,4 +63,32 @@ public class LoginAttempt {
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    public static LoginAttempt success(
+            AppUser appUser,
+            String inputEmail,
+            LocalDateTime attemptedAt
+    ) {
+        LoginAttempt loginAttempt = new LoginAttempt();
+        loginAttempt.appUser = appUser;
+        loginAttempt.inputEmail = inputEmail;
+        loginAttempt.loginResult = LoginResult.SUCCESS;
+        loginAttempt.attemptedAt = attemptedAt;
+        return loginAttempt;
+    }
+
+    public static LoginAttempt failure(
+            AppUser appUser,
+            String inputEmail,
+            LoginFailureReason failureReason,
+            LocalDateTime attemptedAt
+    ) {
+        LoginAttempt loginAttempt = new LoginAttempt();
+        loginAttempt.appUser = appUser;
+        loginAttempt.inputEmail = inputEmail;
+        loginAttempt.loginResult = LoginResult.FAILURE;
+        loginAttempt.failureReason = failureReason;
+        loginAttempt.attemptedAt = attemptedAt;
+        return loginAttempt;
+    }
 }
