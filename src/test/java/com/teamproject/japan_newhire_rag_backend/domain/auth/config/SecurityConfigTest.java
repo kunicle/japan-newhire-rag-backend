@@ -42,6 +42,9 @@ import com.teamproject.japan_newhire_rag_backend.domain.auth.service.internal.In
 import com.teamproject.japan_newhire_rag_backend.domain.auth.service.internal.JwtAuthenticationUser;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.token.AccessTokenService;
 
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+
 @SpringJUnitConfig(SecurityConfigTest.TestConfiguration.class)
 @WebAppConfiguration
 class SecurityConfigTest {
@@ -91,7 +94,7 @@ class SecurityConfigTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().contentType("application/json;charset=UTF-8"))
                 .andExpect(jsonPath("$.status").value(401))
-                .andExpect(jsonPath("$.error").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
                 .andExpect(jsonPath("$.message").value("Authentication is required"));
     }
 
@@ -113,7 +116,7 @@ class SecurityConfigTest {
                         .header("Authorization", "Bearer roleless-token"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.status").value(403))
-                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     @Test
@@ -172,6 +175,11 @@ class SecurityConfigTest {
             RestAccessDeniedHandler.class
     })
     static class TestConfiguration {
+
+        @Bean
+        ObjectMapper objectMapper() {
+            return JsonMapper.builder().build();
+        }
 
         @Bean
         AccessTokenService accessTokenService() {
