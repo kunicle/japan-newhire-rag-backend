@@ -230,3 +230,7 @@ CREATE TABLE refresh_token (
     INDEX idx_refresh_token_expires_at (expires_at),
     INDEX idx_refresh_token_revoked_at (revoked_at)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+SHOW TABLES;
+SHOW CREATE TABLE app_user;
+SHOW CREATE TABLE department;
+SHOW CREATE TABLE employee;
