@@ -2,9 +2,9 @@ package com.teamproject.japan_newhire_rag_backend.rag.ai;
 
 import java.util.List;
 
-public record AiRagRequest(String question, List<Long> allowedDocumentIds) {
+public record AiRagSearchRequest(String question, List<Long> allowedDocumentIds) {
 
-    public AiRagRequest {
+    public AiRagSearchRequest {
         if (question == null || question.trim().isEmpty()) {
             throw new IllegalArgumentException("질문이 비어 있습니다.");
         }
