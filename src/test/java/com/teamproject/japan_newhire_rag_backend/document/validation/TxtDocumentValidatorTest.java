@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 import org.junit.jupiter.api.Test;
 
@@ -50,11 +51,19 @@ class TxtDocumentValidatorTest {
     }
 
     @Test
-    void rejectsContentLargerThanTenMegabytes() {
-        byte[] oversizedContent = new byte[10 * 1024 * 1024 + 1];
+    void rejectsContentLargerThanFiveMegabytes() {
+        byte[] oversizedContent = new byte[5 * 1024 * 1024 + 1];
 
         assertThrows(InvalidTxtDocumentException.class,
                 () -> validator.validate("규정.txt", oversizedContent));
+    }
+
+    @Test
+    void acceptsContentExactlyAtFiveMegabytes() {
+        byte[] maximumSizeContent = new byte[5 * 1024 * 1024];
+        Arrays.fill(maximumSizeContent, (byte) 'a');
+
+        assertDoesNotThrow(() -> validator.validate("규정.txt", maximumSizeContent));
     }
 
     @Test

@@ -7,7 +7,7 @@ import java.nio.charset.StandardCharsets;
 
 public class TxtDocumentValidator {
 
-    private static final long MAX_FILE_SIZE_BYTES = 10L * 1024 * 1024;
+    private static final long MAX_FILE_SIZE_BYTES = 5L * 1024 * 1024;
 
     public void validate(String fileName, byte[] content) {
         if (fileName == null || fileName.trim().isEmpty()) {
@@ -23,7 +23,7 @@ public class TxtDocumentValidator {
         }
 
         if (content.length > MAX_FILE_SIZE_BYTES) {
-            throw new InvalidTxtDocumentException("파일 크기가 10MB를 초과했습니다.");
+            throw new InvalidTxtDocumentException("파일 크기가 5MB를 초과했습니다.");
         }
 
         String decodedContent = decodeUtf8(content);
