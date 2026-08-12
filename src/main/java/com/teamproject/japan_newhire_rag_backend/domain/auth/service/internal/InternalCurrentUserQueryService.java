@@ -46,6 +46,7 @@ public class InternalCurrentUserQueryService {
         Set<RoleType> roles = userRoleRepository
                 .findByAppUser_AppUserIdAndRevokedAtIsNull(appUserId)
                 .stream()
+                .filter(userRole -> userRole.getRole().isActive())
                 .map(this::toRoleType)
                 .collect(Collectors.toUnmodifiableSet());
 
