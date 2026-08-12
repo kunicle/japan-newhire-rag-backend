@@ -7,6 +7,8 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -24,6 +26,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -47,6 +50,14 @@ import tools.jackson.databind.json.JsonMapper;
 
 @SpringJUnitConfig(SecurityConfigTest.TestConfiguration.class)
 @WebAppConfiguration
+@TestPropertySource(properties = {
+        "auth.cookie.name=refresh_token",
+        "auth.cookie.secure=false",
+        "auth.cookie.same-site=Lax",
+        "auth.cookie.path=/api/auth",
+        "auth.cookie.max-age=14d",
+        "auth.cors.allowed-origins=http://localhost:5173"
+})
 class SecurityConfigTest {
 
     @Autowired
@@ -161,6 +172,51 @@ class SecurityConfigTest {
         assertNull(result.getRequest().getSession(false));
     }
 
+    @Test
+    void allowedCorsPreflightSupportsCredentialsAndRequiredHeaders() throws Exception {
+        mockMvc.perform(options("/api/auth/refresh")
+                        .header("Origin", "http://localhost:5173")
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "content-type,x-xsrf-token"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("Access-Control-Allow-Origin", "http://localhost:5173"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("Access-Control-Allow-Credentials", "true"));
+    }
+
+    @Test
+    void unapprovedCorsOriginIsRejected() throws Exception {
+        mockMvc.perform(options("/api/auth/refresh")
+                        .header("Origin", "https://unapproved.example")
+                        .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void refreshRequiresCsrfToken() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void refreshWithCsrfTokenReachesPublicEndpoint() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh").with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(content().string("refresh"));
+    }
+
+    @Test
+    void bearerOnlyBusinessPostDoesNotRequireCsrfToken() throws Exception {
+        stubJwt("valid-token", Set.of(RoleType.EMPLOYEE));
+
+        mockMvc.perform(post("/test/protected")
+                        .header("Authorization", "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("protected-post"));
+    }
+
     private void stubJwt(String token, Set<RoleType> roles) {
         when(accessTokenService.validateAndExtractAppUserId(token)).thenReturn(1L);
         when(authenticationQueryService.load(1L))
@@ -213,6 +269,11 @@ class SecurityConfigTest {
             return "login";
         }
 
+        @PostMapping("/api/auth/refresh")
+        String refresh() {
+            return "refresh";
+        }
+
         @GetMapping("/health")
         String health() {
             return "health";
@@ -221,6 +282,11 @@ class SecurityConfigTest {
         @GetMapping("/test/protected")
         String protectedEndpoint() {
             return "protected";
+        }
+
+        @PostMapping("/test/protected")
+        String protectedPost() {
+            return "protected-post";
         }
 
         @PreAuthorize("hasRole('SYSTEM_ADMIN')")
