@@ -12,11 +12,15 @@ import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.Emplo
 
 public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
+    @EntityGraph(attributePaths = {"appUser", "department", "jobGrade"})
     Optional<Employee> findByAppUser_AppUserId(Long appUserId);
 
     boolean existsByEmployeeId(Long employeeId);
 
     boolean existsByEmployeeNumber(String employeeNumber);
+
+    @EntityGraph(attributePaths = {"department", "jobGrade"})
+    List<Employee> findByDeletedAtIsNullAndDepartment_DeletedAtIsNull();
 
     @EntityGraph(attributePaths = {"appUser", "department", "jobGrade"})
     List<Employee> findByDepartment_DepartmentIdIn(Collection<Long> departmentIds);
