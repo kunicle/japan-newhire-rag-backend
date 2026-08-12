@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 
 import javax.crypto.SecretKey;
@@ -46,11 +47,21 @@ class AccessTokenServiceTest {
     }
 
     @Test
-    void validateRejectsExpiredToken() {
-        TokenFixture fixture = fixture(
-                SECRET_A,
-                Clock.fixed(Instant.parse("2020-01-01T00:00:00Z"), ZoneOffset.UTC));
+    void validateSucceedsImmediatelyBeforeExpiration() {
+        MutableClock clock = new MutableClock(NOW, ZoneOffset.UTC);
+        TokenFixture fixture = fixture(SECRET_A, clock);
         String token = fixture.service().issue(42L);
+        clock.setInstant(NOW.plus(Duration.ofMinutes(15)).minusMillis(1));
+
+        assertEquals(42L, fixture.service().validateAndExtractAppUserId(token));
+    }
+
+    @Test
+    void validateRejectsExpiredToken() {
+        MutableClock clock = new MutableClock(NOW, ZoneOffset.UTC);
+        TokenFixture fixture = fixture(SECRET_A, clock);
+        String token = fixture.service().issue(42L);
+        clock.setInstant(NOW.plus(Duration.ofMinutes(16)).plusSeconds(1));
 
         assertThrows(
                 JwtException.class,
@@ -59,8 +70,9 @@ class AccessTokenServiceTest {
 
     @Test
     void validateRejectsTokenSignedWithDifferentSecret() {
-        TokenFixture issuer = fixture(SECRET_A, Clock.systemUTC());
-        TokenFixture validator = fixture(SECRET_B, Clock.systemUTC());
+        Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+        TokenFixture issuer = fixture(SECRET_A, clock);
+        TokenFixture validator = fixture(SECRET_B, clock);
         String token = issuer.service().issue(42L);
 
         assertThrows(
@@ -70,7 +82,7 @@ class AccessTokenServiceTest {
 
     @Test
     void validateRejectsTamperedToken() {
-        TokenFixture fixture = fixture(SECRET_A, Clock.systemUTC());
+        TokenFixture fixture = fixture(SECRET_A, Clock.fixed(NOW, ZoneOffset.UTC));
         String token = fixture.service().issue(42L);
         int signatureStart = token.lastIndexOf('.') + 1;
         int changeIndex = signatureStart + 3;
@@ -109,7 +121,7 @@ class AccessTokenServiceTest {
         JwtInfrastructureConfig config = new JwtInfrastructureConfig();
         SecretKey secretKey = config.jwtSecretKey(properties);
         JwtEncoder encoder = config.jwtEncoder(secretKey);
-        JwtDecoder decoder = config.jwtDecoder(secretKey);
+        JwtDecoder decoder = config.jwtDecoder(secretKey, clock);
         AccessTokenService service = new AccessTokenService(
                 encoder,
                 decoder,
@@ -126,5 +138,35 @@ class AccessTokenServiceTest {
     }
 
     private record TokenFixture(AccessTokenService service, JwtDecoder decoder) {
+    }
+
+    private static final class MutableClock extends Clock {
+
+        private Instant instant;
+        private final ZoneId zone;
+
+        private MutableClock(Instant instant, ZoneId zone) {
+            this.instant = instant;
+            this.zone = zone;
+        }
+
+        private void setInstant(Instant instant) {
+            this.instant = instant;
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return zone;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return new MutableClock(instant, zone);
+        }
+
+        @Override
+        public Instant instant() {
+            return instant;
+        }
     }
 }
