@@ -82,4 +82,19 @@ public class DocumentProcessingJobDetail {
                 documentChunk,
                 processingStep);
     }
+
+    public void markProcessing() {
+        this.processingStatus = "PROCESSING";
+    }
+
+    public void markCompleted(LocalDateTime processedAt) {
+        this.processingStatus = "COMPLETED";
+        this.processedAt = processedAt;
+    }
+
+    public void markFailed(String failureReason, LocalDateTime processedAt) {
+        this.processingStatus = "FAILED";
+        this.failureReason = failureReason;
+        this.processedAt = processedAt;
+    }
 }
