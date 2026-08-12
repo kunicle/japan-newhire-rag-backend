@@ -13,7 +13,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClient;
 
 import com.teamproject.japan_newhire_rag_backend.document.access.service.DocumentSearchScopeService;
+import com.teamproject.japan_newhire_rag_backend.rag.ai.AiEmbeddingClient;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagClient;
+import com.teamproject.japan_newhire_rag_backend.rag.ai.PythonAiEmbeddingClient;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.PythonAiRagClient;
 import com.teamproject.japan_newhire_rag_backend.rag.application.RagQueryService;
 import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagOrchestrator;
@@ -39,10 +41,12 @@ class RagAiConfigurationTest {
             context.refresh();
 
             AiRagClient aiRagClient = context.getBean(AiRagClient.class);
+            AiEmbeddingClient aiEmbeddingClient = context.getBean(AiEmbeddingClient.class);
             RagOrchestrator ragOrchestrator = context.getBean(RagOrchestrator.class);
             RagQueryService ragQueryService = context.getBean(RagQueryService.class);
 
             assertInstanceOf(PythonAiRagClient.class, aiRagClient);
+            assertInstanceOf(PythonAiEmbeddingClient.class, aiEmbeddingClient);
             assertSame(
                     aiRagClient,
                     ReflectionTestUtils.getField(ragOrchestrator, "aiRagClient"));

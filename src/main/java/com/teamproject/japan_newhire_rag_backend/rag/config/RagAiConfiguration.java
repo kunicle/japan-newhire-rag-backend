@@ -6,7 +6,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 
 import com.teamproject.japan_newhire_rag_backend.document.access.service.DocumentSearchScopeService;
+import com.teamproject.japan_newhire_rag_backend.rag.ai.AiEmbeddingClient;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagClient;
+import com.teamproject.japan_newhire_rag_backend.rag.ai.PythonAiEmbeddingClient;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.PythonAiRagClient;
 import com.teamproject.japan_newhire_rag_backend.rag.application.RagQueryService;
 import com.teamproject.japan_newhire_rag_backend.rag.citation.CitationValidator;
@@ -22,6 +24,14 @@ public class RagAiConfiguration {
             RestClient.Builder restClientBuilder,
             @Value("${rag.ai-server.base-url:http://127.0.0.1:5001}") String baseUrl) {
         return new PythonAiRagClient(restClientBuilder, baseUrl);
+    }
+
+    @Bean
+    public AiEmbeddingClient aiEmbeddingClient(
+            RestClient.Builder restClientBuilder,
+            @Value("${rag.ai-server.base-url:http://127.0.0.1:5001}") String baseUrl) {
+        RestClient restClient = restClientBuilder.baseUrl(baseUrl).build();
+        return new PythonAiEmbeddingClient(restClient);
     }
 
     @Bean
