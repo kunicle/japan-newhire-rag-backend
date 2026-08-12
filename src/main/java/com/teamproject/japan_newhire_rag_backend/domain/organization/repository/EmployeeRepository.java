@@ -19,6 +19,9 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     boolean existsByEmployeeNumber(String employeeNumber);
 
+    @EntityGraph(attributePaths = {"department", "jobGrade"})
+    List<Employee> findByDeletedAtIsNullAndDepartment_DeletedAtIsNull();
+
     @EntityGraph(attributePaths = {"appUser", "department", "jobGrade"})
     List<Employee> findByDepartment_DepartmentIdIn(Collection<Long> departmentIds);
 
