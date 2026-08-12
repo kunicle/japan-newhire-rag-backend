@@ -80,4 +80,36 @@ public class DocumentProcessingJob extends BaseEntity {
     public static DocumentProcessingJob create(DocumentVersion documentVersion, Long createdBy) {
         return new DocumentProcessingJob(documentVersion, createdBy);
     }
+
+    public void markProcessing(LocalDateTime startedAt) {
+        this.processingStatus = "PROCESSING";
+        this.startedAt = startedAt;
+    }
+
+    public void recordTotalChunkCount(int totalChunkCount) {
+        this.totalChunkCount = totalChunkCount;
+    }
+
+    public void incrementCompletedChunkCount() {
+        this.completedChunkCount++;
+    }
+
+    public void incrementFailedChunkCount() {
+        this.failedChunkCount++;
+    }
+
+    public void incrementRetryCount() {
+        this.retryCount++;
+    }
+
+    public void markCompleted(LocalDateTime completedAt) {
+        this.processingStatus = "COMPLETED";
+        this.completedAt = completedAt;
+    }
+
+    public void markFailed(String failureReason, LocalDateTime completedAt) {
+        this.processingStatus = "FAILED";
+        this.failureReason = failureReason;
+        this.completedAt = completedAt;
+    }
 }
