@@ -2,6 +2,7 @@ package com.teamproject.japan_newhire_rag_backend.domain.auth.service.internal;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
@@ -31,15 +32,29 @@ public class RefreshTokenLogoutService {
         this.clock = clock;
     }
 
-    public void logout(String rawRefreshToken) {
+    public void logout(Long currentAppUserId, String rawRefreshToken) {
+        if (currentAppUserId == null) {
+            throw new BadCredentialsException(INVALID_REFRESH_TOKEN_MESSAGE);
+        }
         if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
             throw new BadCredentialsException(INVALID_REFRESH_TOKEN_MESSAGE);
         }
 
         String tokenHash = refreshTokenGenerator.hash(rawRefreshToken);
         refreshTokenRepository.findForUpdateByTokenHash(tokenHash)
-                .filter(refreshToken -> !refreshToken.isRevoked())
-                .ifPresent(this::revoke);
+                .ifPresent(refreshToken -> revokeOwnedToken(currentAppUserId, refreshToken));
+    }
+
+    private void revokeOwnedToken(Long currentAppUserId, RefreshToken refreshToken) {
+        if (refreshToken.getAppUser() == null
+                || !Objects.equals(
+                        currentAppUserId,
+                        refreshToken.getAppUser().getAppUserId())) {
+            throw new BadCredentialsException(INVALID_REFRESH_TOKEN_MESSAGE);
+        }
+        if (!refreshToken.isRevoked()) {
+            revoke(refreshToken);
+        }
     }
 
     private void revoke(RefreshToken refreshToken) {
