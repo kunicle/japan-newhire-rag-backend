@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -28,6 +29,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import jakarta.servlet.http.Cookie;
 
 import com.teamproject.japan_newhire_rag_backend.domain.auth.token.AccessTokenService;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.token.RefreshTokenGenerator;
@@ -151,22 +153,25 @@ class AuthIntegrationTest {
 
         int tokenCountAfterRotation = countRefreshTokens(user.appUserId());
         mockMvc.perform(post("/api/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(refreshBody(loginTokens.refreshToken())))
+                        .with(csrf())
+                        .cookie(refreshCookie(loginTokens.refreshToken())))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
         assertEquals(tokenCountAfterRotation, countRefreshTokens(user.appUserId()));
 
         mockMvc.perform(post("/api/auth/logout")
+                        .with(csrf())
                         .header("Authorization", "Bearer " + rotatedTokens.accessToken())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(refreshBody(rotatedTokens.refreshToken())))
-                .andExpect(status().isNoContent());
+                        .cookie(refreshCookie(rotatedTokens.refreshToken())))
+                .andExpect(status().isNoContent())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("Set-Cookie", org.hamcrest.Matchers.containsString(
+                                "Max-Age=0")));
         assertNotNull(findRefreshByRawToken(rotatedTokens.refreshToken()).revokedAt());
 
         mockMvc.perform(post("/api/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(refreshBody(rotatedTokens.refreshToken())))
+                        .with(csrf())
+                        .cookie(refreshCookie(rotatedTokens.refreshToken())))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
@@ -204,9 +209,9 @@ class AuthIntegrationTest {
         TokenPair tokensB = login(userB.email(), RAW_PASSWORD, "device-b");
 
         mockMvc.perform(post("/api/auth/logout")
+                        .with(csrf())
                         .header("Authorization", "Bearer " + tokensA.accessToken())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(refreshBody(tokensB.refreshToken())))
+                        .cookie(refreshCookie(tokensB.refreshToken())))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
 
@@ -278,18 +283,18 @@ class AuthIntegrationTest {
                         .content(loginBody(email, password, deviceInfo)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
-                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").doesNotExist())
                 .andReturn();
         return tokenPair(result);
     }
 
     private TokenPair refresh(String rawRefreshToken) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(refreshBody(rawRefreshToken)))
+                        .with(csrf())
+                        .cookie(refreshCookie(rawRefreshToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
-                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").doesNotExist())
                 .andReturn();
         return tokenPair(result);
     }
@@ -298,7 +303,7 @@ class AuthIntegrationTest {
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsByteArray());
         return new TokenPair(
                 body.get("accessToken").asText(),
-                body.get("refreshToken").asText());
+                refreshTokenFromSetCookie(result));
     }
 
     private RefreshRow findRefreshByRawToken(String rawRefreshToken) {
@@ -343,8 +348,19 @@ class AuthIntegrationTest {
                 + "\",\"deviceInfo\":" + device + "}";
     }
 
-    private String refreshBody(String refreshToken) {
-        return "{\"refreshToken\":\"" + refreshToken + "\"}";
+    private Cookie refreshCookie(String refreshToken) {
+        return new Cookie("refresh_token", refreshToken);
+    }
+
+    private String refreshTokenFromSetCookie(MvcResult result) {
+        String setCookie = result.getResponse().getHeader("Set-Cookie");
+        assertNotNull(setCookie);
+        assertTrue(setCookie.contains("HttpOnly"));
+        assertTrue(setCookie.contains("Path=/api/auth"));
+        assertTrue(setCookie.contains("SameSite=Lax"));
+        String prefix = "refresh_token=";
+        int valueStart = setCookie.indexOf(prefix) + prefix.length();
+        return setCookie.substring(valueStart, setCookie.indexOf(';', valueStart));
     }
 
     private record TestUser(

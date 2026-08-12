@@ -7,6 +7,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -27,11 +28,13 @@ import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+import jakarta.servlet.http.Cookie;
 
 import com.teamproject.japan_newhire_rag_backend.common.exception.GlobalExceptionHandler;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserContext;
@@ -55,6 +58,14 @@ import tools.jackson.databind.json.JsonMapper;
 
 @SpringJUnitConfig(AuthControllerTest.TestConfiguration.class)
 @WebAppConfiguration
+@TestPropertySource(properties = {
+        "auth.cookie.name=refresh_token",
+        "auth.cookie.secure=false",
+        "auth.cookie.same-site=Lax",
+        "auth.cookie.path=/api/auth",
+        "auth.cookie.max-age=14d",
+        "auth.cors.allowed-origins=http://localhost:5173"
+})
 class AuthControllerTest {
 
     private static final String ACCESS_TOKEN = "access-token";
@@ -106,7 +117,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void loginReturnsTokenPair() throws Exception {
+    void loginReturnsAccessTokenAndHttpOnlyRefreshCookie() throws Exception {
         when(loginService.login("user@example.com", "password", "browser"))
                 .thenReturn(new LoginTokenPair(ACCESS_TOKEN, REFRESH_TOKEN));
 
@@ -117,7 +128,16 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value(ACCESS_TOKEN))
-                .andExpect(jsonPath("$.refreshToken").value(REFRESH_TOKEN));
+                .andExpect(jsonPath("$.refreshToken").doesNotExist())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("Set-Cookie", org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers.containsString("refresh_token=" + REFRESH_TOKEN),
+                                org.hamcrest.Matchers.containsString("HttpOnly"),
+                                org.hamcrest.Matchers.containsString("Path=/api/auth"),
+                                org.hamcrest.Matchers.containsString("SameSite=Lax"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(
+                                org.hamcrest.Matchers.containsString("XSRF-TOKEN="))));
     }
 
     @Test
@@ -126,7 +146,7 @@ class AuthControllerTest {
                 "/api/auth/login",
                 "{\"email\":\"\",\"password\":\"password\"}",
                 "email: must not be blank");
-        verify(loginService, never()).login(anyString(), anyString(), anyString());
+        verify(loginService, never()).login(anyString(), anyString(), org.mockito.ArgumentMatchers.nullable(String.class));
     }
 
     @Test
@@ -167,19 +187,21 @@ class AuthControllerTest {
                 .thenReturn(new LoginTokenPair(NEW_ACCESS_TOKEN, NEW_REFRESH_TOKEN));
 
         mockMvc.perform(post("/api/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(refreshBody(REFRESH_TOKEN)))
+                        .with(csrf())
+                        .cookie(refreshCookie(REFRESH_TOKEN)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value(NEW_ACCESS_TOKEN))
-                .andExpect(jsonPath("$.refreshToken").value(NEW_REFRESH_TOKEN));
+                .andExpect(jsonPath("$.refreshToken").doesNotExist())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("Set-Cookie", org.hamcrest.Matchers.containsString(
+                                "refresh_token=" + NEW_REFRESH_TOKEN)));
     }
 
     @Test
-    void refreshRejectsBlankToken() throws Exception {
-        assertValidationError(
-                "/api/auth/refresh",
-                refreshBody(""),
-                "refreshToken: must not be blank");
+    void refreshWithoutCookieReturnsUnauthorized() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh").with(csrf()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }
 
     @Test
@@ -200,8 +222,8 @@ class AuthControllerTest {
     @Test
     void logoutWithoutAccessTokenReturnsUnauthorized() throws Exception {
         mockMvc.perform(post("/api/auth/logout")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(refreshBody(REFRESH_TOKEN)))
+                        .with(csrf())
+                        .cookie(refreshCookie(REFRESH_TOKEN)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
 
@@ -214,23 +236,31 @@ class AuthControllerTest {
         when(currentUserProvider.getCurrentUser()).thenReturn(currentUserContext());
 
         mockMvc.perform(post("/api/auth/logout")
+                        .with(csrf())
                         .header("Authorization", "Bearer " + ACCESS_TOKEN)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(refreshBody(REFRESH_TOKEN)))
+                        .cookie(refreshCookie(REFRESH_TOKEN)))
                 .andExpect(status().isNoContent())
-                .andExpect(content().string(""));
+                .andExpect(content().string(""))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("Set-Cookie", org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers.containsString("refresh_token="),
+                                org.hamcrest.Matchers.containsString("Max-Age=0"))));
 
         verify(logoutService).logout(1L, REFRESH_TOKEN);
     }
 
     @Test
-    void authenticatedLogoutRejectsBlankRefreshToken() throws Exception {
+    void authenticatedLogoutWithoutCookieReturnsUnauthorizedAndClearsCookie() throws Exception {
         stubAuthenticatedUser();
 
-        assertValidationErrorWithAccessToken(
-                "/api/auth/logout",
-                refreshBody(""),
-                "refreshToken: must not be blank");
+        mockMvc.perform(post("/api/auth/logout")
+                        .with(csrf())
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("Set-Cookie", org.hamcrest.Matchers.containsString(
+                                "Max-Age=0")));
 
         verifyNoLogoutCall();
     }
@@ -251,8 +281,8 @@ class AuthControllerTest {
                 .thenThrow(new BadCredentialsException("Invalid refresh token"));
 
         mockMvc.perform(post("/api/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(refreshBody(token)))
+                        .with(csrf())
+                        .cookie(refreshCookie(token)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }
@@ -264,20 +294,6 @@ class AuthControllerTest {
                         .content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.message").value(message));
-    }
-
-    private void assertValidationErrorWithAccessToken(
-            String endpoint,
-            String body,
-            String message
-    ) throws Exception {
-        mockMvc.perform(post(endpoint)
-                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.message").value(message));
     }
@@ -298,8 +314,8 @@ class AuthControllerTest {
                 EmployeeType.GENERAL);
     }
 
-    private String refreshBody(String token) {
-        return "{\"refreshToken\":\"" + token + "\"}";
+    private Cookie refreshCookie(String token) {
+        return new Cookie("refresh_token", token);
     }
 
     private void verifyNoLogoutCall() {
@@ -310,6 +326,7 @@ class AuthControllerTest {
     @EnableWebMvc
     @Import({
             AuthController.class,
+            RefreshTokenCookieManager.class,
             GlobalExceptionHandler.class,
             SecurityConfig.class,
             RestAuthenticationEntryPoint.class,
