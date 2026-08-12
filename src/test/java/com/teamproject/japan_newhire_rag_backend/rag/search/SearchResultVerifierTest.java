@@ -19,13 +19,13 @@ class SearchResultVerifierTest {
     @Test
     void rejectsNullSearchResults() {
         assertThrows(IllegalArgumentException.class,
-                () -> verifier.filterByAllowedDocuments(null, Set.of(1L)));
+                () -> verifier.filterByAllowedDocumentVersions(null, Set.of(1L)));
     }
 
     @Test
-    void rejectsNullAllowedDocumentIds() {
+    void rejectsNullAllowedDocumentVersionIds() {
         assertThrows(IllegalArgumentException.class,
-                () -> verifier.filterByAllowedDocuments(List.of(), null));
+                () -> verifier.filterByAllowedDocumentVersions(List.of(), null));
     }
 
     @Test
@@ -35,7 +35,7 @@ class SearchResultVerifierTest {
                 createSearchResult(2L, 20L));
 
         List<AiRagSearchResultItem> result =
-                verifier.filterByAllowedDocuments(searchResults, Set.of(1L, 2L));
+                verifier.filterByAllowedDocumentVersions(searchResults, Set.of(1L, 2L));
 
         assertEquals(searchResults, result);
         assertNotSame(searchResults, result);
@@ -50,7 +50,7 @@ class SearchResultVerifierTest {
                 List.of(firstAllowed, disallowed, secondAllowed);
 
         List<AiRagSearchResultItem> result =
-                verifier.filterByAllowedDocuments(searchResults, Set.of(2L));
+                verifier.filterByAllowedDocumentVersions(searchResults, Set.of(2L));
 
         assertEquals(List.of(firstAllowed, secondAllowed), result);
     }
@@ -62,7 +62,7 @@ class SearchResultVerifierTest {
                 createSearchResult(2L, 20L));
 
         List<AiRagSearchResultItem> result =
-                verifier.filterByAllowedDocuments(searchResults, Set.of(3L));
+                verifier.filterByAllowedDocumentVersions(searchResults, Set.of(3L));
 
         assertTrue(result.isEmpty());
     }
@@ -70,18 +70,18 @@ class SearchResultVerifierTest {
     @Test
     void returnsEmptyListForEmptySearchResults() {
         List<AiRagSearchResultItem> result =
-                verifier.filterByAllowedDocuments(List.of(), Set.of(1L));
+                verifier.filterByAllowedDocumentVersions(List.of(), Set.of(1L));
 
         assertTrue(result.isEmpty());
     }
 
     @Test
-    void returnsEmptyListForEmptyAllowedDocumentIds() {
+    void returnsEmptyListForEmptyAllowedDocumentVersionIds() {
         List<AiRagSearchResultItem> searchResults =
                 List.of(createSearchResult(1L, 10L));
 
         List<AiRagSearchResultItem> result =
-                verifier.filterByAllowedDocuments(searchResults, Set.of());
+                verifier.filterByAllowedDocumentVersions(searchResults, Set.of());
 
         assertTrue(result.isEmpty());
     }
@@ -94,14 +94,14 @@ class SearchResultVerifierTest {
         List<AiRagSearchResultItem> originalSnapshot = List.copyOf(searchResults);
 
         List<AiRagSearchResultItem> result =
-                verifier.filterByAllowedDocuments(searchResults, Set.of(1L, 2L));
+                verifier.filterByAllowedDocumentVersions(searchResults, Set.of(1L, 2L));
         result.remove(0);
 
         assertEquals(originalSnapshot, searchResults);
         assertEquals(1, result.size());
     }
 
-    private AiRagSearchResultItem createSearchResult(Long documentId, Long chunkId) {
-        return new AiRagSearchResultItem(documentId, chunkId, "검색 결과 내용", 0.8);
+    private AiRagSearchResultItem createSearchResult(Long documentVersionId, Long chunkId) {
+        return new AiRagSearchResultItem(documentVersionId, chunkId, "검색 결과 내용", 0.8);
     }
 }

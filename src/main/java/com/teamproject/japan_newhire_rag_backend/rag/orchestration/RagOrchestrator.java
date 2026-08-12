@@ -34,18 +34,18 @@ public class RagOrchestrator {
         this.evidenceThreshold = evidenceThreshold;
     }
 
-    public RagOrchestrationResult handle(String question, Set<Long> allowedDocumentIds) {
-        if (question == null || allowedDocumentIds == null) {
-            throw new IllegalArgumentException("question과 allowedDocumentIds는 null일 수 없습니다.");
+    public RagOrchestrationResult handle(String question, Set<Long> allowedDocumentVersionIds) {
+        if (question == null || allowedDocumentVersionIds == null) {
+            throw new IllegalArgumentException("question과 allowedDocumentVersionIds는 null일 수 없습니다.");
         }
 
         AiRagSearchRequest searchRequest =
-                new AiRagSearchRequest(question, List.copyOf(allowedDocumentIds));
+                new AiRagSearchRequest(question, List.copyOf(allowedDocumentVersionIds));
         AiRagSearchResponse searchResponse = aiRagClient.search(searchRequest);
         List<AiRagSearchResultItem> verifiedSearchResults =
-                searchResultVerifier.filterByAllowedDocuments(
+                searchResultVerifier.filterByAllowedDocumentVersions(
                         searchResponse.searchResults(),
-                        allowedDocumentIds);
+                        allowedDocumentVersionIds);
 
         List<Double> similarityScores = verifiedSearchResults.stream()
                 .map(AiRagSearchResultItem::similarityScore)

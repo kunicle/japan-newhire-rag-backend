@@ -15,7 +15,7 @@ class AiRagSearchRequestTest {
                 new AiRagSearchRequest("휴가 규정을 알려주세요.", List.of(1L, 2L));
 
         assertEquals("휴가 규정을 알려주세요.", request.question());
-        assertEquals(List.of(1L, 2L), request.allowedDocumentIds());
+        assertEquals(List.of(1L, 2L), request.allowedDocumentVersionIds());
     }
 
     @Test
@@ -29,13 +29,13 @@ class AiRagSearchRequestTest {
     }
 
     @Test
-    void rejectsNullAllowedDocumentIds() {
+    void rejectsNullAllowedDocumentVersionIds() {
         assertThrows(IllegalArgumentException.class,
                 () -> new AiRagSearchRequest("휴가 규정", null));
     }
 
     @Test
-    void rejectsEmptyAllowedDocumentIds() {
+    void rejectsEmptyAllowedDocumentVersionIds() {
         assertThrows(IllegalArgumentException.class,
                 () -> new AiRagSearchRequest("휴가 규정", List.of()));
     }

@@ -1,14 +1,14 @@
 package com.teamproject.japan_newhire_rag_backend.rag.ai;
 
 public record AiRagSearchResultItem(
-        Long documentId,
+        Long documentVersionId,
         Long chunkId,
         String content,
         double similarityScore) {
 
     public AiRagSearchResultItem {
-        if (documentId == null) {
-            throw new IllegalArgumentException("documentId가 없습니다.");
+        if (documentVersionId == null) {
+            throw new IllegalArgumentException("documentVersionId가 없습니다.");
         }
         if (chunkId == null) {
             throw new IllegalArgumentException("chunkId가 없습니다.");

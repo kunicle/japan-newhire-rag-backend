@@ -97,11 +97,11 @@ class RagOrchestratorTest {
     }
 
     private AiRagSearchResultItem createSearchResult(
-            Long documentId,
+            Long documentVersionId,
             Long chunkId,
             double similarityScore) {
         return new AiRagSearchResultItem(
-                documentId,
+                documentVersionId,
                 chunkId,
                 "검색 결과 내용",
                 similarityScore);

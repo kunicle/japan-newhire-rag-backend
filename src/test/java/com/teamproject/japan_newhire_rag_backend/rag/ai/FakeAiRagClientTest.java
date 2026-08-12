@@ -142,7 +142,7 @@ class FakeAiRagClientTest {
         return new AiRagSearchResponse(List.of(createSearchResult(1L, chunkId)));
     }
 
-    private AiRagSearchResultItem createSearchResult(Long documentId, Long chunkId) {
-        return new AiRagSearchResultItem(documentId, chunkId, "검색 결과", 0.9);
+    private AiRagSearchResultItem createSearchResult(Long documentVersionId, Long chunkId) {
+        return new AiRagSearchResultItem(documentVersionId, chunkId, "검색 결과", 0.9);
     }
 }

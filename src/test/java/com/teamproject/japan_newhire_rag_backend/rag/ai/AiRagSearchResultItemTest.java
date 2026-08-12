@@ -11,14 +11,14 @@ class AiRagSearchResultItemTest {
     void createsSearchResultItemWithValidValues() {
         AiRagSearchResultItem item = new AiRagSearchResultItem(1L, 10L, "휴가 규정 내용", 0.85);
 
-        assertEquals(1L, item.documentId());
+        assertEquals(1L, item.documentVersionId());
         assertEquals(10L, item.chunkId());
         assertEquals("휴가 규정 내용", item.content());
         assertEquals(0.85, item.similarityScore());
     }
 
     @Test
-    void rejectsNullDocumentId() {
+    void rejectsNullDocumentVersionId() {
         assertThrows(IllegalArgumentException.class,
                 () -> new AiRagSearchResultItem(null, 10L, "휴가 규정", 0.8));
     }

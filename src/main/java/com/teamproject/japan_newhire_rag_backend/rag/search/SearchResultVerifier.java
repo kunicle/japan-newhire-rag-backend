@@ -8,19 +8,19 @@ import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagSearchResultItem;
 
 public class SearchResultVerifier {
 
-    public List<AiRagSearchResultItem> filterByAllowedDocuments(
+    public List<AiRagSearchResultItem> filterByAllowedDocumentVersions(
             List<AiRagSearchResultItem> searchResults,
-            Set<Long> allowedDocumentIds) {
+            Set<Long> allowedDocumentVersionIds) {
         if (searchResults == null) {
             throw new IllegalArgumentException("검색 결과 목록이 없습니다.");
         }
-        if (allowedDocumentIds == null) {
-            throw new IllegalArgumentException("허용된 문서 목록이 없습니다.");
+        if (allowedDocumentVersionIds == null) {
+            throw new IllegalArgumentException("허용된 문서 버전 목록이 없습니다.");
         }
 
         List<AiRagSearchResultItem> verifiedResults = new ArrayList<>();
         for (AiRagSearchResultItem searchResult : searchResults) {
-            if (allowedDocumentIds.contains(searchResult.documentId())) {
+            if (allowedDocumentVersionIds.contains(searchResult.documentVersionId())) {
                 verifiedResults.add(searchResult);
             }
         }
