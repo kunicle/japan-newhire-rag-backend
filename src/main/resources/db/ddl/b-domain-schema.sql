@@ -4,6 +4,30 @@
 
 USE japan_newhire_rag;
 
+CREATE TABLE document_chunk (
+    document_chunk_id BIGINT NOT NULL AUTO_INCREMENT,
+    document_version_id BIGINT NOT NULL,
+    chunk_sequence INT NOT NULL,
+    article_number VARCHAR(50) NULL,
+    article_title VARCHAR(200) NULL,
+    chunk_content TEXT NOT NULL,
+    token_count INT NULL,
+    chunk_status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT pk_document_chunk
+        PRIMARY KEY (document_chunk_id),
+    CONSTRAINT fk_document_chunk_version
+        FOREIGN KEY (document_version_id) REFERENCES document_version (document_version_id)
+        ON DELETE CASCADE,
+    CONSTRAINT uk_document_chunk_sequence
+        UNIQUE (document_version_id, chunk_sequence),
+    CONSTRAINT ck_document_chunk_sequence
+        CHECK (chunk_sequence > 0),
+    INDEX idx_document_chunk_version_status (document_version_id, chunk_status),
+    INDEX idx_document_chunk_article (document_version_id, article_number)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
 CREATE TABLE document_processing_job (
     document_processing_job_id BIGINT NOT NULL AUTO_INCREMENT,
     document_version_id BIGINT NOT NULL,
