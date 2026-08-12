@@ -3,6 +3,7 @@ package com.teamproject.japan_newhire_rag_backend.common.exception;
 import java.util.Optional;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.BindingResult;
@@ -57,6 +58,15 @@ public class GlobalExceptionHandler {
                 .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
                 .orElse(ErrorCode.VALIDATION_ERROR.defaultMessage());
         return errorResponse(ErrorCode.VALIDATION_ERROR, message);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException exception
+    ) {
+        return errorResponse(
+                ErrorCode.INVALID_REQUEST,
+                ErrorCode.INVALID_REQUEST.defaultMessage());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

@@ -84,6 +84,17 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.message").value("Internal server error"));
     }
 
+    @Test
+    void unreadableJsonReturnsInvalidRequestWithoutExposingParserMessage() throws Exception {
+        mockMvc.perform(post("/test/errors/validation")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{not-valid-json}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("Invalid request"));
+    }
+
     private void assertBusinessError(ErrorCode errorCode, int status) throws Exception {
         mockMvc.perform(get("/test/errors/business/{code}", errorCode.name()))
                 .andExpect(status().is(status))
