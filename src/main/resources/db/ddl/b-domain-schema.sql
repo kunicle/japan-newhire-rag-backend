@@ -4,6 +4,25 @@
 
 USE japan_newhire_rag;
 
+CREATE TABLE ai_model (
+    ai_model_id BIGINT NOT NULL AUTO_INCREMENT,
+    provider_name VARCHAR(100) NOT NULL,
+    model_name VARCHAR(150) NOT NULL,
+    model_type VARCHAR(20) NOT NULL,
+    embedding_dimension INT NULL,
+    model_status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT pk_ai_model
+        PRIMARY KEY (ai_model_id),
+    CONSTRAINT uk_ai_model_name
+        UNIQUE (provider_name, model_name, model_type),
+    CONSTRAINT ck_ai_model_dimension
+        CHECK (embedding_dimension IS NULL OR embedding_dimension > 0),
+    INDEX idx_ai_model_type_status (model_type, model_status, is_default)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
 CREATE TABLE document_chunk (
     document_chunk_id BIGINT NOT NULL AUTO_INCREMENT,
     document_version_id BIGINT NOT NULL,
