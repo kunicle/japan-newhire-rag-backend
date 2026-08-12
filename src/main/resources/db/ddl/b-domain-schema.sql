@@ -47,6 +47,32 @@ CREATE TABLE document_chunk (
     INDEX idx_document_chunk_article (document_version_id, article_number)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 
+CREATE TABLE chunk_embedding (
+    chunk_embedding_id BIGINT NOT NULL AUTO_INCREMENT,
+    document_chunk_id BIGINT NOT NULL,
+    ai_model_id BIGINT NOT NULL,
+    vector_reference VARCHAR(500) NOT NULL,
+    embedding_dimension INT NOT NULL,
+    embedding_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    embedded_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT pk_chunk_embedding
+        PRIMARY KEY (chunk_embedding_id),
+    CONSTRAINT fk_chunk_embedding_chunk
+        FOREIGN KEY (document_chunk_id) REFERENCES document_chunk (document_chunk_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_chunk_embedding_model
+        FOREIGN KEY (ai_model_id) REFERENCES ai_model (ai_model_id)
+        ON DELETE RESTRICT,
+    CONSTRAINT uk_chunk_embedding_model
+        UNIQUE (document_chunk_id, ai_model_id),
+    CONSTRAINT ck_chunk_embedding_dimension
+        CHECK (embedding_dimension > 0),
+    INDEX idx_chunk_embedding_status (embedding_status, created_at),
+    INDEX idx_chunk_embedding_reference (vector_reference)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
 CREATE TABLE document_processing_job (
     document_processing_job_id BIGINT NOT NULL AUTO_INCREMENT,
     document_version_id BIGINT NOT NULL,
