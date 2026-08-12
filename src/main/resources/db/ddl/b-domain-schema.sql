@@ -62,3 +62,32 @@ CREATE TABLE document_processing_job (
     INDEX idx_document_job_version_time (document_version_id, created_at),
     INDEX idx_document_job_status (processing_status, created_at)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE document_processing_job_detail (
+    processing_job_detail_id BIGINT NOT NULL AUTO_INCREMENT,
+    document_processing_job_id BIGINT NOT NULL,
+    document_chunk_id BIGINT NULL,
+    processing_step VARCHAR(30) NOT NULL,
+    processing_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    attempt_number INT NOT NULL DEFAULT 1,
+    failure_reason VARCHAR(1000) NULL,
+    processed_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT pk_document_processing_job_detail
+        PRIMARY KEY (processing_job_detail_id),
+    CONSTRAINT fk_processing_job_detail_job
+        FOREIGN KEY (document_processing_job_id)
+        REFERENCES document_processing_job (document_processing_job_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_processing_job_detail_chunk
+        FOREIGN KEY (document_chunk_id) REFERENCES document_chunk (document_chunk_id)
+        ON DELETE SET NULL,
+    CONSTRAINT ck_processing_attempt
+        CHECK (attempt_number > 0),
+    INDEX idx_job_detail_job_step (
+        document_processing_job_id,
+        processing_step,
+        processing_status
+    ),
+    INDEX idx_job_detail_chunk (document_chunk_id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
