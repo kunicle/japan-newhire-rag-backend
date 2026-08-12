@@ -50,4 +50,32 @@ public class RefreshToken {
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    public static RefreshToken issue(
+            AppUser appUser,
+            String tokenHash,
+            LocalDateTime expiresAt,
+            String deviceInfo
+    ) {
+        RefreshToken refreshToken = new RefreshToken();
+        refreshToken.appUser = appUser;
+        refreshToken.tokenHash = tokenHash;
+        refreshToken.expiresAt = expiresAt;
+        refreshToken.deviceInfo = deviceInfo;
+        return refreshToken;
+    }
+
+    public void revoke(LocalDateTime revokedAt) {
+        if (this.revokedAt == null) {
+            this.revokedAt = revokedAt;
+        }
+    }
+
+    public boolean isRevoked() {
+        return revokedAt != null;
+    }
+
+    public boolean isExpired(LocalDateTime currentTime) {
+        return !expiresAt.isAfter(currentTime);
+    }
 }
