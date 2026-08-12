@@ -7,15 +7,22 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
 
+import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCode;
+import com.teamproject.japan_newhire_rag_backend.common.error.ErrorResponse;
+
+import tools.jackson.databind.ObjectMapper;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 @Component
 public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
-    private static final String RESPONSE_BODY = """
-            {"status":401,"error":"UNAUTHORIZED","message":"Authentication is required"}
-            """.trim();
+    private final ObjectMapper objectMapper;
+
+    public RestAuthenticationEntryPoint(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     public void commence(
@@ -23,9 +30,9 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
             HttpServletResponse response,
             AuthenticationException authenticationException
     ) throws IOException {
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setStatus(ErrorCode.UNAUTHORIZED.status().value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
-        response.getWriter().write(RESPONSE_BODY);
+        objectMapper.writeValue(response.getOutputStream(), ErrorResponse.from(ErrorCode.UNAUTHORIZED));
     }
 }
