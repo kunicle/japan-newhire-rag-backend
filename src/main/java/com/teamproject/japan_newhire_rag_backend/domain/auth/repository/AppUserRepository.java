@@ -13,6 +13,9 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 
     Optional<AppUser> findByEmail(String email);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<AppUser> findForUpdateByEmail(String email);
+
     boolean existsByEmail(String email);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
