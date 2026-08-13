@@ -1,6 +1,7 @@
 package com.teamproject.japan_newhire_rag_backend.domain.auth.service.internal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -8,6 +9,7 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.time.LocalDateTime;
 
 import org.junit.jupiter.api.Test;
 
@@ -23,6 +25,8 @@ import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.Empl
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.JobGrade;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmployeeType;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.EmployeeRepository;
+
+import jakarta.persistence.EntityNotFoundException;
 
 class InternalCurrentUserQueryServiceTest {
 
@@ -42,6 +46,7 @@ class InternalCurrentUserQueryServiceTest {
 
         when(appUserRepository.findById(1L)).thenReturn(Optional.of(appUser));
         when(employeeRepository.findByAppUser_AppUserId(1L)).thenReturn(Optional.of(employee));
+        when(employee.getDeletedAt()).thenReturn(null);
         when(employee.getEmployeeId()).thenReturn(10L);
         when(employee.getDepartment()).thenReturn(department);
         when(employee.getJobGrade()).thenReturn(jobGrade);
@@ -55,6 +60,27 @@ class InternalCurrentUserQueryServiceTest {
 
         assertEquals(Set.of(RoleType.EMPLOYEE), result.roles());
         verify(userRoleRepository).findByAppUser_AppUserIdAndRevokedAtIsNull(1L);
+    }
+
+    @Test
+    void rejectsSoftDeletedEmployeeWithoutLoadingRoles() {
+        AppUserRepository appUserRepository = mock(AppUserRepository.class);
+        EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
+        UserRoleRepository userRoleRepository = mock(UserRoleRepository.class);
+        InternalCurrentUserQueryService service = new InternalCurrentUserQueryService(
+                appUserRepository, employeeRepository, userRoleRepository);
+        AppUser appUser = mock(AppUser.class);
+        Employee employee = mock(Employee.class);
+
+        when(appUserRepository.findById(1L)).thenReturn(Optional.of(appUser));
+        when(employeeRepository.findByAppUser_AppUserId(1L)).thenReturn(Optional.of(employee));
+        when(employee.getDeletedAt()).thenReturn(LocalDateTime.of(2026, 8, 13, 10, 0));
+
+        assertThrows(EntityNotFoundException.class,
+                () -> service.getCurrentUserContext(1L));
+
+        verify(userRoleRepository, org.mockito.Mockito.never())
+                .findByAppUser_AppUserIdAndRevokedAtIsNull(1L);
     }
 
     private UserRole assignment(String roleCode, boolean active) {

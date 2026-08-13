@@ -40,6 +40,7 @@ public class InternalCurrentUserQueryService {
                         "AppUser not found for appUserId: " + appUserId));
 
         Employee employee = employeeRepository.findByAppUser_AppUserId(appUserId)
+                .filter(found -> found.getDeletedAt() == null)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Employee not found for appUserId: " + appUserId));
 

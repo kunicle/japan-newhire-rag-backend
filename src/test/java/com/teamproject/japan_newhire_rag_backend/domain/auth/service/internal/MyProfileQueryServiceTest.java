@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -51,6 +52,7 @@ class MyProfileQueryServiceTest {
         ManagerRelation relation = mock(ManagerRelation.class);
         when(manager.getEmployeeId()).thenReturn(20L);
         when(manager.getEmployeeName()).thenReturn("Manager Lee");
+        when(manager.getDeletedAt()).thenReturn(null);
         when(relation.getManagerEmployee()).thenReturn(manager);
         when(employeeRepository.findByAppUser_AppUserId(1L)).thenReturn(Optional.of(employee));
         when(managerRepositoryCall()).thenReturn(List.of(relation));
@@ -110,6 +112,51 @@ class MyProfileQueryServiceTest {
     }
 
     @Test
+    void rejectsSoftDeletedCurrentEmployeeAsProfileNotFound() {
+        Employee employee = mock(Employee.class);
+        when(employee.getEmployeeId()).thenReturn(10L);
+        when(employee.getDeletedAt()).thenReturn(LocalDateTime.of(2026, 8, 13, 10, 0));
+        when(employeeRepository.findByAppUser_AppUserId(1L)).thenReturn(Optional.of(employee));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.getMyProfile(context(Set.of(RoleType.EMPLOYEE))));
+
+        assertEquals(ProfileErrorCode.PROFILE_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void excludesSoftDeletedDirectManagerFromProfile() {
+        Employee employee = employee();
+        Employee manager = mock(Employee.class);
+        ManagerRelation relation = mock(ManagerRelation.class);
+        when(manager.getDeletedAt()).thenReturn(LocalDateTime.of(2026, 8, 13, 10, 0));
+        when(relation.getManagerEmployee()).thenReturn(manager);
+        when(employeeRepository.findByAppUser_AppUserId(1L)).thenReturn(Optional.of(employee));
+        when(managerRepositoryCall()).thenReturn(List.of(relation));
+
+        MyProfileResponse response = service.getMyProfile(context(Set.of(RoleType.EMPLOYEE)));
+
+        assertNull(response.managerEmployeeId());
+        assertNull(response.managerName());
+    }
+
+    @Test
+    void teamRelationIsNotReturnedAsDirectManager() {
+        Employee employee = employee();
+        when(employeeRepository.findByAppUser_AppUserId(1L)).thenReturn(Optional.of(employee));
+        when(managerRepositoryCall()).thenReturn(List.of());
+
+        MyProfileResponse response = service.getMyProfile(context(Set.of(RoleType.EMPLOYEE)));
+
+        assertNull(response.managerEmployeeId());
+        assertNull(response.managerName());
+        org.mockito.Mockito.verify(managerRelationRepository)
+                .findByEmployee_EmployeeIdAndRelationTypeAndRelationStatusAndEndedAtIsNull(
+                        10L, RelationType.DIRECT, RelationStatus.ACTIVE);
+    }
+
+    @Test
     void rejectsMultipleActiveDirectManagersAsDataConflict() {
         Employee employee = employee();
         when(employeeRepository.findByAppUser_AppUserId(1L)).thenReturn(Optional.of(employee));
@@ -139,6 +186,7 @@ class MyProfileQueryServiceTest {
         Department department = mock(Department.class);
         JobGrade jobGrade = mock(JobGrade.class);
         when(employee.getEmployeeId()).thenReturn(10L);
+        when(employee.getDeletedAt()).thenReturn(null);
         when(employee.getEmployeeNumber()).thenReturn("E-001");
         when(employee.getEmployeeName()).thenReturn("Kim");
         when(employee.getAppUser()).thenReturn(appUser);
