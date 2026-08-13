@@ -66,4 +66,25 @@ public class Employee extends BaseEntity {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    public static Employee createEmployed(
+            AppUser appUser,
+            Department department,
+            JobGrade jobGrade,
+            String employeeNumber,
+            String employeeName,
+            EmployeeType employeeType,
+            LocalDate hireDate
+    ) {
+        Employee employee = new Employee();
+        employee.appUser = appUser;
+        employee.department = department;
+        employee.jobGrade = jobGrade;
+        employee.employeeNumber = employeeNumber;
+        employee.employeeName = employeeName;
+        employee.employeeType = employeeType;
+        employee.hireDate = hireDate;
+        employee.employmentStatus = EmploymentStatus.EMPLOYED;
+        return employee;
+    }
 }

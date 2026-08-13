@@ -18,6 +18,8 @@ public interface OrganizationQueryService {
 
     boolean isManagedEmployee(Long managerEmployeeId, Long employeeId);
 
+    Long findDirectManagerEmployeeId(Long employeeId);
+
     List<EmployeeSummary> findEmployeeSummaries(Collection<Long> employeeIds);
 
     Map<Long, Long> findAppUserIdsByEmployeeIds(Collection<Long> employeeIds);
