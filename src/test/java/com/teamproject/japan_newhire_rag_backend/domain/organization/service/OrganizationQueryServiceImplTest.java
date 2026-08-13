@@ -2,6 +2,8 @@ package com.teamproject.japan_newhire_rag_backend.domain.organization.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -32,6 +34,7 @@ import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.Mana
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmployeeType;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationStatus;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationType;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.EmployeeRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.ManagerRelationRepository;
 
@@ -227,6 +230,88 @@ class OrganizationQueryServiceImplTest {
     }
 
     @Test
+    void findDirectManagerEmployeeIdReturnsManagerForActiveCurrentDirectRelation() {
+        ManagerRelation relation = directManagerRelation(10L);
+        when(managerRelationRepository
+                .findByEmployee_EmployeeIdAndRelationTypeAndRelationStatusAndEndedAtIsNull(
+                        2L, RelationType.DIRECT, RelationStatus.ACTIVE))
+                .thenReturn(List.of(relation));
+
+        assertEquals(10L, service.findDirectManagerEmployeeId(2L));
+    }
+
+    @Test
+    void findDirectManagerEmployeeIdReturnsNullWhenTargetEmployeeIsDeleted() {
+        ManagerRelation relation = directManagerRelation(
+                LocalDateTime.now(), 10L, null);
+        when(managerRelationRepository
+                .findByEmployee_EmployeeIdAndRelationTypeAndRelationStatusAndEndedAtIsNull(
+                        2L, RelationType.DIRECT, RelationStatus.ACTIVE))
+                .thenReturn(List.of(relation));
+
+        assertNull(service.findDirectManagerEmployeeId(2L));
+    }
+
+    @Test
+    void findDirectManagerEmployeeIdReturnsNullWhenManagerEmployeeIsDeleted() {
+        ManagerRelation relation = directManagerRelation(
+                null, 10L, LocalDateTime.now());
+        when(managerRelationRepository
+                .findByEmployee_EmployeeIdAndRelationTypeAndRelationStatusAndEndedAtIsNull(
+                        2L, RelationType.DIRECT, RelationStatus.ACTIVE))
+                .thenReturn(List.of(relation));
+
+        assertNull(service.findDirectManagerEmployeeId(2L));
+    }
+
+    @Test
+    void findDirectManagerEmployeeIdReturnsNullWhenRelationIsMissing() {
+        stubNoCurrentDirectManagerRelation(2L);
+
+        assertNull(service.findDirectManagerEmployeeId(2L));
+    }
+
+    @Test
+    void findDirectManagerEmployeeIdReturnsNullWhenOnlyTeamRelationExists() {
+        stubNoCurrentDirectManagerRelation(2L);
+
+        assertNull(service.findDirectManagerEmployeeId(2L));
+    }
+
+    @Test
+    void findDirectManagerEmployeeIdReturnsNullWhenDirectRelationIsInactive() {
+        stubNoCurrentDirectManagerRelation(2L);
+
+        assertNull(service.findDirectManagerEmployeeId(2L));
+    }
+
+    @Test
+    void findDirectManagerEmployeeIdReturnsNullWhenDirectRelationHasEndedAt() {
+        stubNoCurrentDirectManagerRelation(2L);
+
+        assertNull(service.findDirectManagerEmployeeId(2L));
+    }
+
+    @Test
+    void findDirectManagerEmployeeIdFailsForMultipleActiveCurrentDirectRelations() {
+        ManagerRelation firstRelation = mock(ManagerRelation.class);
+        ManagerRelation secondRelation = mock(ManagerRelation.class);
+        when(managerRelationRepository
+                .findByEmployee_EmployeeIdAndRelationTypeAndRelationStatusAndEndedAtIsNull(
+                        2L, RelationType.DIRECT, RelationStatus.ACTIVE))
+                .thenReturn(List.of(firstRelation, secondRelation));
+
+        assertThrows(IllegalStateException.class,
+                () -> service.findDirectManagerEmployeeId(2L));
+    }
+
+    @Test
+    void findDirectManagerEmployeeIdReturnsNullWithoutQueryForNullEmployeeId() {
+        assertNull(service.findDirectManagerEmployeeId(null));
+        verifyNoInteractions(managerRelationRepository);
+    }
+
+    @Test
     void findEmployeeSummariesReturnsFieldsForValidEmployeesOnly() {
         Employee valid = employee(1L, EmploymentStatus.EMPLOYED, null, AccountStatus.ACTIVE);
         Employee invalid = employee(2L, EmploymentStatus.LEAVE, null, AccountStatus.ACTIVE);
@@ -292,6 +377,33 @@ class OrganizationQueryServiceImplTest {
         ManagerRelation relation = mock(ManagerRelation.class);
         when(relation.getEmployee()).thenReturn(employee);
         return relation;
+    }
+
+    private ManagerRelation directManagerRelation(Long managerEmployeeId) {
+        return directManagerRelation(null, managerEmployeeId, null);
+    }
+
+    private ManagerRelation directManagerRelation(
+            LocalDateTime targetDeletedAt,
+            Long managerEmployeeId,
+            LocalDateTime managerDeletedAt
+    ) {
+        ManagerRelation relation = mock(ManagerRelation.class);
+        Employee target = mock(Employee.class);
+        Employee manager = mock(Employee.class);
+        when(relation.getEmployee()).thenReturn(target);
+        lenient().when(relation.getManagerEmployee()).thenReturn(manager);
+        when(target.getDeletedAt()).thenReturn(targetDeletedAt);
+        lenient().when(manager.getDeletedAt()).thenReturn(managerDeletedAt);
+        lenient().when(manager.getEmployeeId()).thenReturn(managerEmployeeId);
+        return relation;
+    }
+
+    private void stubNoCurrentDirectManagerRelation(Long employeeId) {
+        when(managerRelationRepository
+                .findByEmployee_EmployeeIdAndRelationTypeAndRelationStatusAndEndedAtIsNull(
+                        employeeId, RelationType.DIRECT, RelationStatus.ACTIVE))
+                .thenReturn(List.of());
     }
 
     private void stubSummary(

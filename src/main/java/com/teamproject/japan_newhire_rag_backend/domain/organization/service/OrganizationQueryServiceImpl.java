@@ -18,6 +18,7 @@ import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.Mana
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmployeeType;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationStatus;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationType;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.EmployeeRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.ManagerRelationRepository;
 
@@ -109,6 +110,35 @@ public class OrganizationQueryServiceImpl implements OrganizationQueryService {
                         RelationStatus.ACTIVE);
 
         return hasActiveRelation && isValidEmployee(employeeId);
+    }
+
+    @Override
+    public Long findDirectManagerEmployeeId(Long employeeId) {
+        if (employeeId == null) {
+            return null;
+        }
+
+        List<ManagerRelation> relations = managerRelationRepository
+                .findByEmployee_EmployeeIdAndRelationTypeAndRelationStatusAndEndedAtIsNull(
+                        employeeId,
+                        RelationType.DIRECT,
+                        RelationStatus.ACTIVE);
+
+        if (relations.isEmpty()) {
+            return null;
+        }
+        if (relations.size() > 1) {
+            throw new IllegalStateException(
+                    "Multiple active direct manager relations found for employeeId: " + employeeId);
+        }
+
+        ManagerRelation relation = relations.get(0);
+        if (relation.getEmployee().getDeletedAt() != null
+                || relation.getManagerEmployee().getDeletedAt() != null) {
+            return null;
+        }
+
+        return relation.getManagerEmployee().getEmployeeId();
     }
 
     @Override

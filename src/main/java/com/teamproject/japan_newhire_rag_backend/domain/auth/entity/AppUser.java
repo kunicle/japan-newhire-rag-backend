@@ -53,6 +53,28 @@ public class AppUser extends BaseEntity {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    public static AppUser createActive(String email, String passwordHash) {
+        AppUser appUser = new AppUser();
+        appUser.email = email;
+        appUser.passwordHash = passwordHash;
+        appUser.accountStatus = AccountStatus.ACTIVE;
+        return appUser;
+    }
+
+    public void activate() {
+        if (accountStatus != AccountStatus.INACTIVE) {
+            throw new IllegalStateException("Only an inactive account can be activated");
+        }
+        accountStatus = AccountStatus.ACTIVE;
+    }
+
+    public void deactivate() {
+        if (accountStatus != AccountStatus.ACTIVE) {
+            throw new IllegalStateException("Only an active account can be deactivated");
+        }
+        accountStatus = AccountStatus.INACTIVE;
+    }
+
     public void recordLoginFailure(LocalDateTime attemptedAt) {
         failedLoginCount++;
 
