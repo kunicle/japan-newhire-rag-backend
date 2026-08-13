@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.AccountStatusResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.CreateUserRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.CreateUserResponse;
+import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.UpdateUserRolesRequest;
+import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.UserRolesResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.service.internal.UserAdministrationService;
 
 import jakarta.validation.Valid;
@@ -42,5 +44,13 @@ public class UserAdministrationController {
     @PatchMapping("/{appUserId}/deactivate")
     public AccountStatusResponse deactivate(@PathVariable Long appUserId) {
         return userAdministrationService.deactivate(appUserId);
+    }
+
+    @PatchMapping("/{appUserId}/roles")
+    public UserRolesResponse updateRoles(
+            @PathVariable Long appUserId,
+            @Valid @RequestBody UpdateUserRolesRequest request
+    ) {
+        return userAdministrationService.updateRoles(appUserId, request);
     }
 }

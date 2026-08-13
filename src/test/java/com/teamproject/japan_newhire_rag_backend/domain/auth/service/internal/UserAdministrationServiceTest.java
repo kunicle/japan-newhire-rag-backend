@@ -25,10 +25,15 @@ import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserCont
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProvider;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.CreateUserRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.entity.AppUser;
+import com.teamproject.japan_newhire_rag_backend.domain.auth.entity.Role;
+import com.teamproject.japan_newhire_rag_backend.domain.auth.entity.UserRole;
+import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.UpdateUserRolesRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.AccountStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.RoleType;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.error.UserAdministrationErrorCode;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.repository.AppUserRepository;
+import com.teamproject.japan_newhire_rag_backend.domain.auth.repository.RoleRepository;
+import com.teamproject.japan_newhire_rag_backend.domain.auth.repository.UserRoleRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.Department;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.Employee;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.JobGrade;
@@ -50,6 +55,8 @@ class UserAdministrationServiceTest {
     JobGradeRepository jobGradeRepository;
     CurrentUserProvider currentUserProvider;
     AuditLogRecordService auditLogRecordService;
+    RoleRepository roleRepository;
+    UserRoleRepository userRoleRepository;
     UserAdministrationService service;
 
     @BeforeEach
@@ -60,6 +67,8 @@ class UserAdministrationServiceTest {
         jobGradeRepository = mock(JobGradeRepository.class);
         currentUserProvider = mock(CurrentUserProvider.class);
         auditLogRecordService = mock(AuditLogRecordService.class);
+        roleRepository = mock(RoleRepository.class);
+        userRoleRepository = mock(UserRoleRepository.class);
         service = new UserAdministrationService(
                 appUserRepository,
                 employeeRepository,
@@ -67,7 +76,9 @@ class UserAdministrationServiceTest {
                 jobGradeRepository,
                 new BCryptPasswordEncoder(),
                 currentUserProvider,
-                auditLogRecordService);
+                auditLogRecordService,
+                roleRepository,
+                userRoleRepository);
         when(currentUserProvider.getCurrentUser()).thenReturn(new CurrentUserContext(
                 99L, 999L, Set.of(RoleType.SYSTEM_ADMIN), 1L, 1,
                 EmployeeType.GENERAL));
@@ -178,6 +189,102 @@ class UserAdministrationServiceTest {
         org.mockito.Mockito.doThrow(new IllegalStateException("audit failed"))
                 .when(auditLogRecordService).record(any());
         assertThrows(IllegalStateException.class, () -> service.deactivate(1L));
+    }
+
+    @Test
+    void updatesRoleSetByGrantingRevokingAndKeepingExistingAssignments() {
+        AppUser target = AppUser.createActive("target@example.com", "hash");
+        ReflectionTestUtils.setField(target, "appUserId", 1L);
+        AppUser actor = AppUser.createActive("admin@example.com", "hash");
+        ReflectionTestUtils.setField(actor, "appUserId", 99L);
+        Role employee = role(10L, RoleType.EMPLOYEE, true);
+        Role manager = role(20L, RoleType.MANAGER, true);
+        Role hrManager = role(30L, RoleType.HR_MANAGER, true);
+        UserRole employeeAssignment = UserRole.grant(
+                target, employee, actor, java.time.LocalDateTime.now().minusDays(1));
+        ReflectionTestUtils.setField(employeeAssignment, "userRoleId", 100L);
+        UserRole hrAssignment = UserRole.grant(
+                target, hrManager, actor, java.time.LocalDateTime.now().minusDays(1));
+        ReflectionTestUtils.setField(hrAssignment, "userRoleId", 300L);
+
+        when(appUserRepository.findForUpdateByAppUserId(1L)).thenReturn(Optional.of(target));
+        when(appUserRepository.findById(99L)).thenReturn(Optional.of(actor));
+        when(roleRepository.findByRoleCodeIn(any()))
+                .thenReturn(java.util.List.of(employee, manager));
+        when(userRoleRepository.findForUpdateByAppUser_AppUserIdAndRevokedAtIsNull(1L))
+                .thenReturn(java.util.List.of(employeeAssignment, hrAssignment));
+        when(userRoleRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            UserRole value = invocation.getArgument(0);
+            ReflectionTestUtils.setField(value, "userRoleId", 200L);
+            return value;
+        });
+
+        var response = service.updateRoles(1L, new UpdateUserRolesRequest(
+                Set.of(RoleType.EMPLOYEE, RoleType.MANAGER)));
+
+        assertEquals(Set.of(RoleType.EMPLOYEE, RoleType.MANAGER), response.roles());
+        assertEquals(99L, hrAssignment.getRevokedBy().getAppUserId());
+        assertTrue(hrAssignment.getRevokedAt() != null);
+        verify(userRoleRepository).saveAndFlush(any(UserRole.class));
+        ArgumentCaptor<AuditLogRecordCommand> auditCaptor =
+                ArgumentCaptor.forClass(AuditLogRecordCommand.class);
+        verify(auditLogRecordService, org.mockito.Mockito.times(2)).record(auditCaptor.capture());
+        assertEquals(Set.of(AuditActionType.ROLE_GRANTED, AuditActionType.ROLE_REVOKED),
+                auditCaptor.getAllValues().stream()
+                        .map(AuditLogRecordCommand::actionType).collect(java.util.stream.Collectors.toSet()));
+    }
+
+    @Test
+    void rejectsDeletedUserOrUnavailableRoleAndNoOpDoesNotWrite() {
+        AppUser deleted = AppUser.createActive("deleted@example.com", "hash");
+        ReflectionTestUtils.setField(deleted, "deletedAt", java.time.LocalDateTime.now());
+        when(appUserRepository.findForUpdateByAppUserId(1L)).thenReturn(Optional.of(deleted));
+        BusinessException missingUser = assertThrows(BusinessException.class,
+                () -> service.updateRoles(1L,
+                        new UpdateUserRolesRequest(Set.of(RoleType.EMPLOYEE))));
+        assertEquals(UserAdministrationErrorCode.APP_USER_NOT_FOUND, missingUser.getErrorCode());
+
+        AppUser target = AppUser.createActive("target@example.com", "hash");
+        ReflectionTestUtils.setField(target, "appUserId", 1L);
+        when(appUserRepository.findForUpdateByAppUserId(1L)).thenReturn(Optional.of(target));
+        when(appUserRepository.findById(99L)).thenReturn(Optional.of(target));
+        when(roleRepository.findByRoleCodeIn(any())).thenReturn(java.util.List.of());
+        BusinessException missingRole = assertThrows(BusinessException.class,
+                () -> service.updateRoles(1L,
+                        new UpdateUserRolesRequest(Set.of(RoleType.EMPLOYEE))));
+        assertEquals(UserAdministrationErrorCode.ROLE_NOT_AVAILABLE, missingRole.getErrorCode());
+    }
+
+    @Test
+    void identicalRoleSetIsNoOp() {
+        AppUser target = AppUser.createActive("target@example.com", "hash");
+        ReflectionTestUtils.setField(target, "appUserId", 1L);
+        AppUser actor = AppUser.createActive("admin@example.com", "hash");
+        ReflectionTestUtils.setField(actor, "appUserId", 99L);
+        Role employee = role(10L, RoleType.EMPLOYEE, true);
+        UserRole assignment = UserRole.grant(
+                target, employee, actor, java.time.LocalDateTime.now().minusDays(1));
+        ReflectionTestUtils.setField(assignment, "userRoleId", 100L);
+        when(appUserRepository.findForUpdateByAppUserId(1L)).thenReturn(Optional.of(target));
+        when(appUserRepository.findById(99L)).thenReturn(Optional.of(actor));
+        when(roleRepository.findByRoleCodeIn(any())).thenReturn(java.util.List.of(employee));
+        when(userRoleRepository.findForUpdateByAppUser_AppUserIdAndRevokedAtIsNull(1L))
+                .thenReturn(java.util.List.of(assignment));
+
+        service.updateRoles(1L,
+                new UpdateUserRolesRequest(Set.of(RoleType.EMPLOYEE)));
+
+        verify(userRoleRepository, never()).saveAndFlush(any());
+        verify(auditLogRecordService, never()).record(any());
+        assertEquals(null, assignment.getRevokedAt());
+    }
+
+    private Role role(Long id, RoleType type, boolean active) {
+        Role value = mock(Role.class);
+        when(value.getRoleId()).thenReturn(id);
+        when(value.getRoleCode()).thenReturn(type.name());
+        when(value.isActive()).thenReturn(active);
+        return value;
     }
 
     private CreateUserRequest request() {
