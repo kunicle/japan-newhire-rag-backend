@@ -54,6 +54,7 @@ class FakeAiEmbeddingClientTest {
 
         assertEquals(2, client.getEmbedCallCount());
         assertSame(lastRequest, client.getLastRequest());
+        assertEquals(1L, client.getLastRequest().documentVersionId());
     }
 
     @Test
@@ -63,7 +64,7 @@ class FakeAiEmbeddingClientTest {
     }
 
     private EmbeddingRequest request(Long documentChunkId) {
-        return new EmbeddingRequest(documentChunkId, "규정 내용", "openai", "model");
+        return new EmbeddingRequest(documentChunkId, 1L, "규정 내용", "openai", "model");
     }
 
     private EmbeddingResult result(String vectorReference) {

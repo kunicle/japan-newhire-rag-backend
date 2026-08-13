@@ -30,6 +30,7 @@ public class PythonAiEmbeddingClient implements AiEmbeddingClient {
 
     private record EmbedHttpRequest(
             @JsonProperty("document_chunk_id") Long documentChunkId,
+            @JsonProperty("document_version_id") Long documentVersionId,
             @JsonProperty("chunk_content") String chunkContent,
             @JsonProperty("provider_name") String providerName,
             @JsonProperty("model_name") String modelName) {
@@ -37,6 +38,7 @@ public class PythonAiEmbeddingClient implements AiEmbeddingClient {
         private static EmbedHttpRequest from(EmbeddingRequest request) {
             return new EmbedHttpRequest(
                     request.documentChunkId(),
+                    request.documentVersionId(),
                     request.chunkContent(),
                     request.providerName(),
                     request.modelName());

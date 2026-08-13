@@ -36,6 +36,7 @@ class PythonAiEmbeddingClientTest {
                 .andExpect(content().json("""
                         {
                           "document_chunk_id": 101,
+                          "document_version_id": 10,
                           "chunk_content": "example content",
                           "provider_name": "provider-a",
                           "model_name": "model-a"
@@ -50,6 +51,7 @@ class PythonAiEmbeddingClientTest {
 
         EmbeddingResult result = client.embed(new EmbeddingRequest(
                 101L,
+                10L,
                 "example content",
                 "provider-a",
                 "model-a"));
@@ -80,6 +82,6 @@ class PythonAiEmbeddingClientTest {
     }
 
     private EmbeddingRequest request() {
-        return new EmbeddingRequest(101L, "example content", "provider-a", "model-a");
+        return new EmbeddingRequest(101L, 10L, "example content", "provider-a", "model-a");
     }
 }
