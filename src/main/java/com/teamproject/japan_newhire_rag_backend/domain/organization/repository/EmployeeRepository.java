@@ -6,11 +6,17 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.Employee;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmployeeType;
 
+import jakarta.persistence.LockModeType;
+
 public interface EmployeeRepository extends JpaRepository<Employee, Long> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Employee> findForUpdateByEmployeeId(Long employeeId);
 
     @EntityGraph(attributePaths = {"appUser", "department", "jobGrade"})
     Optional<Employee> findByAppUser_AppUserId(Long appUserId);
