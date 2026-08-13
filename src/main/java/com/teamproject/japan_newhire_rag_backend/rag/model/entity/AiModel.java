@@ -61,4 +61,12 @@ public class AiModel extends BaseEntity {
             Integer embeddingDimension) {
         return new AiModel(providerName, modelName, modelType, embeddingDimension);
     }
+
+    public void markAsDefault() {
+        this.isDefault = true;
+    }
+
+    public void clearDefault() {
+        this.isDefault = false;
+    }
 }
