@@ -74,4 +74,9 @@ public class ChunkEmbedding extends BaseEntity {
                 vectorReference,
                 embeddingDimension);
     }
+
+    public void markCompleted(LocalDateTime embeddedAt) {
+        this.embeddingStatus = "COMPLETED";
+        this.embeddedAt = embeddedAt;
+    }
 }
