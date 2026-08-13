@@ -34,6 +34,7 @@ public class MyProfileQueryService {
     public MyProfileResponse getMyProfile(CurrentUserContext currentUser) {
         Employee employee = employeeRepository.findByAppUser_AppUserId(currentUser.appUserId())
                 .filter(found -> found.getEmployeeId().equals(currentUser.employeeId()))
+                .filter(found -> found.getDeletedAt() == null)
                 .orElseThrow(() -> new BusinessException(ProfileErrorCode.PROFILE_NOT_FOUND));
 
         List<ManagerRelation> directManagers = managerRelationRepository
@@ -49,6 +50,9 @@ public class MyProfileQueryService {
         Employee manager = directManagers.isEmpty()
                 ? null
                 : directManagers.get(0).getManagerEmployee();
+        if (manager != null && manager.getDeletedAt() != null) {
+            manager = null;
+        }
 
         return new MyProfileResponse(
                 currentUser.appUserId(),
