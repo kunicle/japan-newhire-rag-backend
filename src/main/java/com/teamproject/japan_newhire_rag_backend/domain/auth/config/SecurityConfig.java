@@ -83,6 +83,8 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/health")
                         .permitAll()
+                        .requestMatchers("/api/admin/users/**")
+                        .hasRole("SYSTEM_ADMIN")
                         .anyRequest()
                         .hasAnyRole(APPLICATION_ROLES))
                 .addFilterBefore(
