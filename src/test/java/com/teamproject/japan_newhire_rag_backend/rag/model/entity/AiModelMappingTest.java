@@ -73,7 +73,7 @@ class AiModelMappingTest {
         String ddl = new ClassPathResource("db/ddl/b-domain-schema.sql")
                 .getContentAsString(StandardCharsets.UTF_8);
         int start = ddl.indexOf("CREATE TABLE ai_model");
-        int end = ddl.indexOf("CREATE TABLE document_chunk", start);
+        int end = ddl.indexOf("CREATE TABLE document_category", start);
         String aiModelDdl = ddl.substring(start, end);
 
         assertThat(aiModelDdl).contains(
