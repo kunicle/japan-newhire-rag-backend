@@ -11,6 +11,7 @@ public enum UserAdministrationErrorCode implements ErrorCodeSpec {
     DEPARTMENT_NOT_AVAILABLE(HttpStatus.UNPROCESSABLE_ENTITY, "Department does not exist or is not active"),
     JOB_GRADE_NOT_AVAILABLE(HttpStatus.UNPROCESSABLE_ENTITY, "Job grade does not exist or is not active"),
     INVALID_ACCOUNT_STATUS_TRANSITION(HttpStatus.CONFLICT, "Account status transition is not allowed"),
+    ROLE_NOT_AVAILABLE(HttpStatus.UNPROCESSABLE_ENTITY, "Role does not exist or is not active"),
     USER_DATA_CONFLICT(HttpStatus.CONFLICT, "User data is inconsistent");
 
     private final HttpStatus status;

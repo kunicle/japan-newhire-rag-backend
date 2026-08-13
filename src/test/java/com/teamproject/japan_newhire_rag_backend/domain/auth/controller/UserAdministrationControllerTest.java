@@ -6,6 +6,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -29,6 +30,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import com.teamproject.japan_newhire_rag_backend.common.exception.GlobalExceptionHandler;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.config.SecurityConfig;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.CreateUserResponse;
+import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.UserRolesResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.AccountStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.RoleType;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.security.JwtAuthenticationFilter;
@@ -95,6 +97,53 @@ class UserAdministrationControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestJson()))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void systemAdminCanUpdateRoles() throws Exception {
+        authenticateAs(RoleType.SYSTEM_ADMIN);
+        when(service.updateRoles(org.mockito.ArgumentMatchers.eq(7L), any()))
+                .thenReturn(new UserRolesResponse(
+                        7L, Set.of(RoleType.EMPLOYEE, RoleType.MANAGER)));
+        mockMvc.perform(patch("/api/admin/users/7/roles")
+                        .header("Authorization", "Bearer token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roles\":[\"EMPLOYEE\",\"MANAGER\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.appUserId").value(7))
+                .andExpect(jsonPath("$.roles.length()").value(2));
+    }
+
+    @Test
+    void roleUpdateRequiresSystemAdmin() throws Exception {
+        for (RoleType role : Set.of(RoleType.EMPLOYEE, RoleType.MANAGER, RoleType.HR_MANAGER)) {
+            authenticateAs(role);
+            mockMvc.perform(patch("/api/admin/users/7/roles")
+                            .header("Authorization", "Bearer token")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"roles\":[\"EMPLOYEE\"]}"))
+                    .andExpect(status().isForbidden());
+        }
+        reset(accessTokenService, authenticationQueryService);
+        mockMvc.perform(patch("/api/admin/users/7/roles")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roles\":[\"EMPLOYEE\"]}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void invalidRoleUpdateRequestIsBadRequest() throws Exception {
+        authenticateAs(RoleType.SYSTEM_ADMIN);
+        mockMvc.perform(patch("/api/admin/users/7/roles")
+                        .header("Authorization", "Bearer token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roles\":[]}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(patch("/api/admin/users/7/roles")
+                        .header("Authorization", "Bearer token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roles\":[\"UNKNOWN\"]}"))
+                .andExpect(status().isBadRequest());
     }
 
     private void authenticateAs(RoleType role) {
