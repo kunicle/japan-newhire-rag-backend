@@ -5,6 +5,9 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 
+import org.springframework.stereotype.Component;
+
+@Component
 public class TxtDocumentValidator {
 
     private static final long MAX_FILE_SIZE_BYTES = 5L * 1024 * 1024;

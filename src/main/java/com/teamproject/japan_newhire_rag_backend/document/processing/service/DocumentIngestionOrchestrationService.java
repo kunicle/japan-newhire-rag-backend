@@ -1,0 +1,63 @@
+package com.teamproject.japan_newhire_rag_backend.document.processing.service;
+
+import java.nio.charset.StandardCharsets;
+
+import org.springframework.stereotype.Service;
+
+import com.teamproject.japan_newhire_rag_backend.document.processing.entity.DocumentProcessingJob;
+import com.teamproject.japan_newhire_rag_backend.document.service.DocumentLifecycleService;
+import com.teamproject.japan_newhire_rag_backend.document.validation.TxtDocumentValidator;
+import com.teamproject.japan_newhire_rag_backend.document.version.entity.DocumentVersion;
+
+@Service
+public class DocumentIngestionOrchestrationService {
+
+    private final TxtDocumentValidator txtDocumentValidator;
+    private final DocumentLifecycleService documentLifecycleService;
+    private final DocumentChunkingProcessingService documentChunkingProcessingService;
+    private final DocumentEmbeddingOrchestrationService documentEmbeddingOrchestrationService;
+
+    public DocumentIngestionOrchestrationService(
+            TxtDocumentValidator txtDocumentValidator,
+            DocumentLifecycleService documentLifecycleService,
+            DocumentChunkingProcessingService documentChunkingProcessingService,
+            DocumentEmbeddingOrchestrationService documentEmbeddingOrchestrationService) {
+        this.txtDocumentValidator = txtDocumentValidator;
+        this.documentLifecycleService = documentLifecycleService;
+        this.documentChunkingProcessingService = documentChunkingProcessingService;
+        this.documentEmbeddingOrchestrationService = documentEmbeddingOrchestrationService;
+    }
+
+    public DocumentProcessingJob ingest(
+            Long documentCategoryId,
+            String documentName,
+            String documentDescription,
+            String versionName,
+            String originalFileName,
+            String storedFilePath,
+            byte[] content,
+            int maxChunkSize,
+            int overlapSize,
+            Long createdByAppUserId) {
+        txtDocumentValidator.validate(originalFileName, content);
+        String text = new String(content, StandardCharsets.UTF_8);
+
+        DocumentVersion documentVersion =
+                documentLifecycleService.createDocumentWithInitialVersion(
+                        documentCategoryId,
+                        documentName,
+                        documentDescription,
+                        versionName,
+                        originalFileName,
+                        storedFilePath,
+                        content.length,
+                        createdByAppUserId);
+        DocumentProcessingJob job = documentChunkingProcessingService.processChunking(
+                documentVersion,
+                text,
+                maxChunkSize,
+                overlapSize,
+                createdByAppUserId);
+        return documentEmbeddingOrchestrationService.processEmbeddings(job, documentVersion);
+    }
+}
