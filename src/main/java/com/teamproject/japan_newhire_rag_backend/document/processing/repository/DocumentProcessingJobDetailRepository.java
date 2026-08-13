@@ -6,4 +6,10 @@ import com.teamproject.japan_newhire_rag_backend.document.processing.entity.Docu
 
 public interface DocumentProcessingJobDetailRepository
         extends JpaRepository<DocumentProcessingJobDetail, Long> {
+
+    boolean existsByDocumentProcessingJob_DocumentProcessingJobIdAndDocumentChunk_DocumentChunkIdAndProcessingStepAndProcessingStatus(
+            Long documentProcessingJobId,
+            Long documentChunkId,
+            String processingStep,
+            String processingStatus);
 }
