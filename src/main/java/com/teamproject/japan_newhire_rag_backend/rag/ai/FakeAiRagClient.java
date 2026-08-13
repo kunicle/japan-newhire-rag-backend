@@ -7,6 +7,7 @@ public class FakeAiRagClient implements AiRagClient {
 
     private final Map<String, AiRagSearchResponse> searchResponsesByQuestion = new HashMap<>();
     private AiRagSearchResponse defaultSearchResponse;
+    private AiRagSearchRequest lastSearchRequest;
     private final Map<String, AiRagGenerateResponse> generateResponsesByQuestion = new HashMap<>();
     private AiRagGenerateResponse defaultGenerateResponse;
     private int generateCallCount;
@@ -39,6 +40,7 @@ public class FakeAiRagClient implements AiRagClient {
         if (request == null) {
             throw new IllegalArgumentException("request는 null일 수 없습니다.");
         }
+        lastSearchRequest = request;
 
         AiRagSearchResponse registeredResponse = searchResponsesByQuestion.get(request.question());
         if (registeredResponse != null) {
@@ -72,6 +74,10 @@ public class FakeAiRagClient implements AiRagClient {
 
     public int getGenerateCallCount() {
         return generateCallCount;
+    }
+
+    public AiRagSearchRequest getLastSearchRequest() {
+        return lastSearchRequest;
     }
 
     public AiRagGenerateRequest getLastGenerateRequest() {

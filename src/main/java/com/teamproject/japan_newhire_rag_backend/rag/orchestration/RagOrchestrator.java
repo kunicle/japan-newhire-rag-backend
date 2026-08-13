@@ -34,13 +34,24 @@ public class RagOrchestrator {
         this.evidenceThreshold = evidenceThreshold;
     }
 
-    public RagOrchestrationResult handle(String question, Set<Long> allowedDocumentVersionIds) {
-        if (question == null || allowedDocumentVersionIds == null) {
-            throw new IllegalArgumentException("question과 allowedDocumentVersionIds는 null일 수 없습니다.");
+    public RagOrchestrationResult handle(
+            String question,
+            Set<Long> allowedDocumentVersionIds,
+            String providerName,
+            String modelName) {
+        if (question == null
+                || allowedDocumentVersionIds == null
+                || providerName == null
+                || modelName == null) {
+            throw new IllegalArgumentException("RAG 검색 입력은 null일 수 없습니다.");
         }
 
         AiRagSearchRequest searchRequest =
-                new AiRagSearchRequest(question, List.copyOf(allowedDocumentVersionIds));
+                new AiRagSearchRequest(
+                        question,
+                        List.copyOf(allowedDocumentVersionIds),
+                        providerName,
+                        modelName);
         AiRagSearchResponse searchResponse = aiRagClient.search(searchRequest);
         List<AiRagSearchResultItem> verifiedSearchResults =
                 searchResultVerifier.filterByAllowedDocumentVersions(

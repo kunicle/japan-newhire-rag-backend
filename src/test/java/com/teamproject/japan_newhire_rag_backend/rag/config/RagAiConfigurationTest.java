@@ -18,6 +18,7 @@ import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagClient;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.PythonAiEmbeddingClient;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.PythonAiRagClient;
 import com.teamproject.japan_newhire_rag_backend.rag.application.RagQueryService;
+import com.teamproject.japan_newhire_rag_backend.rag.model.service.EmbeddingModelSelectionService;
 import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagOrchestrator;
 
 class RagAiConfigurationTest {
@@ -26,6 +27,8 @@ class RagAiConfigurationTest {
     void createsRagBeanGraphWithConfiguredEvidenceThreshold() {
         DocumentSearchScopeService documentSearchScopeService =
                 new DocumentSearchScopeService(null, null);
+        EmbeddingModelSelectionService embeddingModelSelectionService =
+                new EmbeddingModelSelectionService(null);
 
         try (AnnotationConfigApplicationContext context =
                 new AnnotationConfigApplicationContext()) {
@@ -37,6 +40,9 @@ class RagAiConfigurationTest {
             context.registerBean(
                     DocumentSearchScopeService.class,
                     () -> documentSearchScopeService);
+            context.registerBean(
+                    EmbeddingModelSelectionService.class,
+                    () -> embeddingModelSelectionService);
             context.register(RagAiConfiguration.class);
             context.refresh();
 
@@ -56,6 +62,9 @@ class RagAiConfigurationTest {
             assertSame(
                     documentSearchScopeService,
                     ReflectionTestUtils.getField(ragQueryService, "documentSearchScopeService"));
+            assertSame(
+                    embeddingModelSelectionService,
+                    ReflectionTestUtils.getField(ragQueryService, "embeddingModelSelectionService"));
             assertSame(
                     ragOrchestrator,
                     ReflectionTestUtils.getField(ragQueryService, "ragOrchestrator"));

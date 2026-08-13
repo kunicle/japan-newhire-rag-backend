@@ -47,10 +47,16 @@ public class PythonAiRagClient implements AiRagClient {
 
     private record SearchHttpRequest(
             String question,
-            @JsonProperty("allowed_document_version_ids") List<Long> allowedDocumentVersionIds) {
+            @JsonProperty("allowed_document_version_ids") List<Long> allowedDocumentVersionIds,
+            @JsonProperty("provider_name") String providerName,
+            @JsonProperty("model_name") String modelName) {
 
         private static SearchHttpRequest from(AiRagSearchRequest request) {
-            return new SearchHttpRequest(request.question(), request.allowedDocumentVersionIds());
+            return new SearchHttpRequest(
+                    request.question(),
+                    request.allowedDocumentVersionIds(),
+                    request.providerName(),
+                    request.modelName());
         }
     }
 

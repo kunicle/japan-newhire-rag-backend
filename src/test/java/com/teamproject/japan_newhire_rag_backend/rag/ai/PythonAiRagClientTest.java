@@ -37,7 +37,9 @@ class PythonAiRagClientTest {
                 .andExpect(content().json("""
                         {
                           "question": "육아휴직 규정을 알려주세요",
-                          "allowed_document_version_ids": [101, 102]
+                          "allowed_document_version_ids": [101, 102],
+                          "provider_name": "provider-a",
+                          "model_name": "model-a"
                         }
                         """))
                 .andRespond(withSuccess("""
@@ -54,7 +56,11 @@ class PythonAiRagClientTest {
                         """, MediaType.APPLICATION_JSON));
 
         AiRagSearchResponse response = client.search(
-                new AiRagSearchRequest("육아휴직 규정을 알려주세요", List.of(101L, 102L)));
+                new AiRagSearchRequest(
+                        "육아휴직 규정을 알려주세요",
+                        List.of(101L, 102L),
+                        "provider-a",
+                        "model-a"));
 
         assertEquals(1, response.searchResults().size());
         AiRagSearchResultItem item = response.searchResults().get(0);
@@ -106,7 +112,8 @@ class PythonAiRagClientTest {
 
         assertThrows(
                 RestClientResponseException.class,
-                () -> client.search(new AiRagSearchRequest("질문", List.of(101L))));
+                () -> client.search(new AiRagSearchRequest(
+                        "질문", List.of(101L), "provider-a", "model-a")));
         server.verify();
     }
 }

@@ -13,6 +13,7 @@ import com.teamproject.japan_newhire_rag_backend.rag.ai.PythonAiRagClient;
 import com.teamproject.japan_newhire_rag_backend.rag.application.RagQueryService;
 import com.teamproject.japan_newhire_rag_backend.rag.citation.CitationValidator;
 import com.teamproject.japan_newhire_rag_backend.rag.evidence.EvidenceThresholdChecker;
+import com.teamproject.japan_newhire_rag_backend.rag.model.service.EmbeddingModelSelectionService;
 import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagOrchestrator;
 import com.teamproject.japan_newhire_rag_backend.rag.search.SearchResultVerifier;
 
@@ -67,7 +68,11 @@ public class RagAiConfiguration {
     @Bean
     public RagQueryService ragQueryService(
             DocumentSearchScopeService documentSearchScopeService,
+            EmbeddingModelSelectionService embeddingModelSelectionService,
             RagOrchestrator ragOrchestrator) {
-        return new RagQueryService(documentSearchScopeService, ragOrchestrator);
+        return new RagQueryService(
+                documentSearchScopeService,
+                embeddingModelSelectionService,
+                ragOrchestrator);
     }
 }

@@ -22,6 +22,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.teamproject.japan_newhire_rag_backend.document.access.service.DocumentSearchScopeService;
+import com.teamproject.japan_newhire_rag_backend.rag.model.EmbeddingModelSelection;
+import com.teamproject.japan_newhire_rag_backend.rag.model.service.EmbeddingModelSelectionService;
 import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagOrchestrationResult;
 import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagOrchestrator;
 
@@ -32,13 +34,19 @@ class RagQueryServiceTest {
     private DocumentSearchScopeService documentSearchScopeService;
 
     @Mock
+    private EmbeddingModelSelectionService embeddingModelSelectionService;
+
+    @Mock
     private RagOrchestrator ragOrchestrator;
 
     private RagQueryService service;
 
     @BeforeEach
     void setUp() {
-        service = new RagQueryService(documentSearchScopeService, ragOrchestrator);
+        service = new RagQueryService(
+                documentSearchScopeService,
+                embeddingModelSelectionService,
+                ragOrchestrator);
     }
 
     @Test
@@ -50,7 +58,7 @@ class RagQueryServiceTest {
         assertFalse(result.hasSufficientEvidence());
         assertNull(result.answer());
         assertEquals(List.of(), result.validCitedChunkIds());
-        verifyNoInteractions(ragOrchestrator);
+        verifyNoInteractions(embeddingModelSelectionService, ragOrchestrator);
     }
 
     @Test
@@ -59,11 +67,19 @@ class RagQueryServiceTest {
         RagOrchestrationResult expected = new RagOrchestrationResult(false, null, List.of());
         when(documentSearchScopeService.findAllowedDocumentVersionIds())
                 .thenReturn(allowedDocumentVersionIds);
-        when(ragOrchestrator.handle("질문", allowedDocumentVersionIds)).thenReturn(expected);
+        when(embeddingModelSelectionService.selectDefaultEmbeddingModel())
+                .thenReturn(modelSelection());
+        when(ragOrchestrator.handle(
+                "질문", allowedDocumentVersionIds, "provider-a", "model-a"))
+                .thenReturn(expected);
 
         service.handle("질문");
 
-        verify(ragOrchestrator).handle(eq("질문"), same(allowedDocumentVersionIds));
+        verify(ragOrchestrator).handle(
+                eq("질문"),
+                same(allowedDocumentVersionIds),
+                eq("provider-a"),
+                eq("model-a"));
     }
 
     @Test
@@ -73,7 +89,11 @@ class RagQueryServiceTest {
                 new RagOrchestrationResult(true, "답변", List.of(100L));
         when(documentSearchScopeService.findAllowedDocumentVersionIds())
                 .thenReturn(allowedDocumentVersionIds);
-        when(ragOrchestrator.handle("질문", allowedDocumentVersionIds)).thenReturn(expected);
+        when(embeddingModelSelectionService.selectDefaultEmbeddingModel())
+                .thenReturn(modelSelection());
+        when(ragOrchestrator.handle(
+                "질문", allowedDocumentVersionIds, "provider-a", "model-a"))
+                .thenReturn(expected);
 
         RagOrchestrationResult actual = service.handle("질문");
 
@@ -89,7 +109,7 @@ class RagQueryServiceTest {
                 assertThrows(IllegalStateException.class, () -> service.handle("질문"));
 
         assertSame(expected, actual);
-        verifyNoInteractions(ragOrchestrator);
+        verifyNoInteractions(embeddingModelSelectionService, ragOrchestrator);
     }
 
     @Test
@@ -98,7 +118,11 @@ class RagQueryServiceTest {
         IllegalStateException expected = new IllegalStateException("orchestration failed");
         when(documentSearchScopeService.findAllowedDocumentVersionIds())
                 .thenReturn(allowedDocumentVersionIds);
-        when(ragOrchestrator.handle("질문", allowedDocumentVersionIds)).thenThrow(expected);
+        when(embeddingModelSelectionService.selectDefaultEmbeddingModel())
+                .thenReturn(modelSelection());
+        when(ragOrchestrator.handle(
+                "질문", allowedDocumentVersionIds, "provider-a", "model-a"))
+                .thenThrow(expected);
 
         IllegalStateException actual =
                 assertThrows(IllegalStateException.class, () -> service.handle("질문"));
@@ -112,7 +136,7 @@ class RagQueryServiceTest {
 
         assertThrows(IllegalArgumentException.class, () -> service.handle(null));
 
-        verifyNoInteractions(ragOrchestrator);
+        verifyNoInteractions(embeddingModelSelectionService, ragOrchestrator);
     }
 
     @Test
@@ -121,7 +145,7 @@ class RagQueryServiceTest {
 
         assertThrows(IllegalArgumentException.class, () -> service.handle("   "));
 
-        verifyNoInteractions(ragOrchestrator);
+        verifyNoInteractions(embeddingModelSelectionService, ragOrchestrator);
     }
 
     @Test
@@ -132,6 +156,13 @@ class RagQueryServiceTest {
         assertThrows(IllegalArgumentException.class, () -> service.handle(null));
         assertThrows(IllegalArgumentException.class, () -> service.handle("   "));
 
-        verifyNoInteractions(documentSearchScopeService, ragOrchestrator);
+        verifyNoInteractions(
+                documentSearchScopeService,
+                embeddingModelSelectionService,
+                ragOrchestrator);
+    }
+
+    private EmbeddingModelSelection modelSelection() {
+        return new EmbeddingModelSelection(1L, "provider-a", "model-a", 1536);
     }
 }

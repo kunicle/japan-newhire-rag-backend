@@ -131,7 +131,7 @@ class FakeAiRagClientTest {
     }
 
     private AiRagSearchRequest createSearchRequest(String question) {
-        return new AiRagSearchRequest(question, List.of(1L));
+        return new AiRagSearchRequest(question, List.of(1L), "provider-a", "model-a");
     }
 
     private AiRagGenerateRequest createGenerateRequest(String question) {
