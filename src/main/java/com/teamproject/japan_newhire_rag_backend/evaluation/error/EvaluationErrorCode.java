@@ -13,6 +13,10 @@ public enum EvaluationErrorCode implements ErrorCodeSpec {
     EVALUATION_TEMPLATE_INVALID_VALUE(HttpStatus.BAD_REQUEST, "Evaluation template values are invalid"),
     EVALUATION_TEMPLATE_DUPLICATE_TYPE(HttpStatus.CONFLICT, "Evaluation template type already exists in cycle"),
     EVALUATION_TEMPLATE_NOT_EDITABLE(HttpStatus.CONFLICT, "Evaluation template is not editable"),
+    EVALUATION_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "Evaluation item not found"),
+    EVALUATION_ITEM_INVALID_VALUE(HttpStatus.BAD_REQUEST, "Evaluation item values are invalid"),
+    EVALUATION_ITEM_DUPLICATE_ORDER(HttpStatus.CONFLICT, "Evaluation item order already exists in template"),
+    EVALUATION_ITEM_NOT_EDITABLE(HttpStatus.CONFLICT, "Evaluation item is not editable"),
     EVALUATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "Evaluation operation access is denied");
 
     private final HttpStatus status;
