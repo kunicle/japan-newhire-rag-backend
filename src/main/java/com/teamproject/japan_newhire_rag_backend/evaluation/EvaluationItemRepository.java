@@ -17,4 +17,6 @@ public interface EvaluationItemRepository extends JpaRepository<EvaluationItem, 
 
     List<EvaluationItem> findByEvaluationTemplateIdOrderByItemOrderAsc(
             Long evaluationTemplateId);
+
+    boolean existsByEvaluationTemplateId(Long evaluationTemplateId);
 }

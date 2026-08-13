@@ -17,6 +17,13 @@ public enum EvaluationErrorCode implements ErrorCodeSpec {
     EVALUATION_ITEM_INVALID_VALUE(HttpStatus.BAD_REQUEST, "Evaluation item values are invalid"),
     EVALUATION_ITEM_DUPLICATE_ORDER(HttpStatus.CONFLICT, "Evaluation item order already exists in template"),
     EVALUATION_ITEM_NOT_EDITABLE(HttpStatus.CONFLICT, "Evaluation item is not editable"),
+    EVALUATION_ASSIGNMENT_INVALID_VALUE(HttpStatus.BAD_REQUEST, "Evaluation assignment values are invalid"),
+    EVALUATION_DUPLICATE_ASSIGNMENT(HttpStatus.CONFLICT, "Evaluation assignment already exists"),
+    EVALUATION_TARGET_INVALID(HttpStatus.BAD_REQUEST, "Evaluation target employee is invalid"),
+    EVALUATION_EVALUATOR_INVALID(HttpStatus.BAD_REQUEST, "Evaluation evaluator employee is invalid"),
+    EVALUATION_MANAGER_RELATION_INVALID(HttpStatus.CONFLICT, "Evaluation direct manager relation is invalid"),
+    EVALUATION_TEMPLATE_NOT_READY(HttpStatus.CONFLICT, "Evaluation templates are not ready"),
+    EVALUATION_CYCLE_NOT_ASSIGNABLE(HttpStatus.CONFLICT, "Evaluation cycle is not assignable"),
     EVALUATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "Evaluation operation access is denied");
 
     private final HttpStatus status;
