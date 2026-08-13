@@ -6,6 +6,13 @@ import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCodeSpec;
 
 public enum OrganizationErrorCode implements ErrorCodeSpec {
 
+    EMPLOYEE_NOT_FOUND(HttpStatus.NOT_FOUND, "Employee not found"),
+    MANAGER_NOT_FOUND(HttpStatus.NOT_FOUND, "Manager employee not found"),
+    SELF_MANAGER_NOT_ALLOWED(HttpStatus.CONFLICT, "An employee cannot be their own manager"),
+    MANAGER_RELATION_DATA_CONFLICT(
+            HttpStatus.CONFLICT,
+            "Manager relation data is inconsistent"),
+
     ORGANIZATION_DATA_CONFLICT(
             HttpStatus.CONFLICT,
             "Organization data is inconsistent");

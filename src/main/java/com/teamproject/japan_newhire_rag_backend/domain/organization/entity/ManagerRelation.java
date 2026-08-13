@@ -58,4 +58,31 @@ public class ManagerRelation extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "created_by", nullable = false)
     private AppUser createdBy;
+
+    public static ManagerRelation createDirect(
+            Employee employee,
+            Employee managerEmployee,
+            AppUser createdBy,
+            LocalDateTime startedAt
+    ) {
+        ManagerRelation relation = new ManagerRelation();
+        relation.employee = employee;
+        relation.managerEmployee = managerEmployee;
+        relation.relationType = RelationType.DIRECT;
+        relation.startedAt = startedAt;
+        relation.relationStatus = RelationStatus.ACTIVE;
+        relation.createdBy = createdBy;
+        return relation;
+    }
+
+    public void end(LocalDateTime endedAt) {
+        if (relationStatus != RelationStatus.ACTIVE || this.endedAt != null) {
+            throw new IllegalStateException("Only an active current relation can be ended");
+        }
+        if (endedAt.isBefore(startedAt)) {
+            throw new IllegalArgumentException("endedAt must not be before startedAt");
+        }
+        relationStatus = RelationStatus.ENDED;
+        this.endedAt = endedAt;
+    }
 }
