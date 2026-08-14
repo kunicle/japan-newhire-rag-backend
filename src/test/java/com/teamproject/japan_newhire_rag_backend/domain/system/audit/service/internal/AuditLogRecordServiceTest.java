@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -103,6 +104,67 @@ class AuditLogRecordServiceTest {
         verify(auditLogRepository).save(captor.capture());
         assertEquals("{\"managerEmployeeId\":null}", captor.getValue().getPreviousValue());
         assertEquals("{\"managerEmployeeId\":30}", captor.getValue().getChangedValue());
+    }
+
+    @Test
+    void recordsEvaluationResultPublishedWithAllowedMetadataAndFeedbackIds() {
+        Map<String, Object> changed = new LinkedHashMap<>();
+        changed.put("cycleId", 10L);
+        changed.put("targetEmployeeId", 20L);
+        changed.put("selfEvaluationId", 101L);
+        changed.put("managerEvaluationId", 102L);
+        changed.put("visibleManagerFeedbackIds", List.of(201L, 202L));
+
+        service.record(new AuditLogRecordCommand(
+                1L,
+                AuditActionType.EVALUATION_RESULT_PUBLISHED,
+                101L,
+                null,
+                changed,
+                null,
+                null));
+
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogRepository).save(captor.capture());
+        AuditLog saved = captor.getValue();
+        assertEquals(AuditActionType.EVALUATION_RESULT_PUBLISHED, saved.getActionType());
+        assertEquals(AuditTargetType.EVALUATION, saved.getTargetType());
+        assertEquals(101L, saved.getTargetId());
+        assertNull(saved.getPreviousValue());
+        assertEquals(
+                "{\"cycleId\":10,\"targetEmployeeId\":20,\"selfEvaluationId\":101,"
+                        + "\"managerEvaluationId\":102,\"visibleManagerFeedbackIds\":[201,202]}",
+                saved.getChangedValue());
+    }
+
+    @Test
+    void rejectsUnexpectedEvaluationResultMetadata() {
+        AuditLogRecordCommand command = new AuditLogRecordCommand(
+                1L,
+                AuditActionType.EVALUATION_RESULT_PUBLISHED,
+                101L,
+                null,
+                Map.of("managerFeedbackText", "sensitive feedback"),
+                null,
+                null);
+
+        assertThrows(IllegalArgumentException.class, () -> service.record(command));
+        verify(auditLogRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void rejectsNonIdValuesInVisibleManagerFeedbackIds() {
+        AuditLogRecordCommand command = new AuditLogRecordCommand(
+                1L,
+                AuditActionType.EVALUATION_RESULT_PUBLISHED,
+                101L,
+                null,
+                Map.of("visibleManagerFeedbackIds", List.of("feedback text")),
+                null,
+                null);
+
+        assertThrows(IllegalArgumentException.class, () -> service.record(command));
+        verify(auditLogRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
