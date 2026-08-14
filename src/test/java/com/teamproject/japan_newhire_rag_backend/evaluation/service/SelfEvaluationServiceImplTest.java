@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -17,6 +18,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
@@ -164,6 +166,16 @@ class SelfEvaluationServiceImplTest {
     void openDraftCanBeSaved() {
         SelfEvaluationResponse response = service.saveDraft(EVALUATION_ID, request(null, null));
         assertEquals(EvaluationStatus.DRAFT, response.evaluationStatus());
+        verify(evaluation).setLastDraftSavedAt(LocalDateTime.of(2026, 8, 12, 0, 0));
+    }
+
+    @Test
+    void everySuccessfulDraftSaveRefreshesLastDraftSavedAt() {
+        service.saveDraft(EVALUATION_ID, request(null, null));
+        service.saveDraft(EVALUATION_ID, request(new BigDecimal("3.5"), "feedback"));
+
+        verify(evaluation, times(2))
+                .setLastDraftSavedAt(LocalDateTime.of(2026, 8, 12, 0, 0));
     }
 
     @Test
@@ -381,6 +393,7 @@ class SelfEvaluationServiceImplTest {
                 () -> service.saveDraft(EVALUATION_ID, request));
         verify(scoreRepository, never()).save(any());
         verify(feedbackRepository, never()).save(any());
+        verify(evaluation, never()).setLastDraftSavedAt(any());
     }
 
     @Test

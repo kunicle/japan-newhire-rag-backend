@@ -3,6 +3,7 @@ package com.teamproject.japan_newhire_rag_backend.evaluation.service;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -107,6 +108,7 @@ public class SelfEvaluationServiceImpl implements SelfEvaluationService {
             saveItemFeedback(evaluationId, itemDraft);
         }
         saveOverallFeedback(evaluationId, request.overallFeedback(), overallFeedbacks);
+        evaluation.setLastDraftSavedAt(LocalDateTime.now(clock));
 
         return buildResponse(evaluation, cycle);
     }

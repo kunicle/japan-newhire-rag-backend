@@ -61,6 +61,9 @@ public class Evaluation {
     @Column(name = "total_score", precision = 7, scale = 2)
     private BigDecimal totalScore;
 
+    @Column(name = "last_draft_saved_at")
+    private LocalDateTime lastDraftSavedAt;
+
     @Column(name = "submitted_at")
     private LocalDateTime submittedAt;
 
@@ -161,6 +164,14 @@ public class Evaluation {
 
     public void setTotalScore(BigDecimal totalScore) {
         this.totalScore = totalScore;
+    }
+
+    public LocalDateTime getLastDraftSavedAt() {
+        return lastDraftSavedAt;
+    }
+
+    public void setLastDraftSavedAt(LocalDateTime lastDraftSavedAt) {
+        this.lastDraftSavedAt = lastDraftSavedAt;
     }
 
     public LocalDateTime getSubmittedAt() {

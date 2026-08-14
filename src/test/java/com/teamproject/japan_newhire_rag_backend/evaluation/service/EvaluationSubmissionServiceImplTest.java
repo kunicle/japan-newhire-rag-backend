@@ -265,6 +265,7 @@ class EvaluationSubmissionServiceImplTest {
         service.submitManager(EVALUATION_ID);
         verify(evaluation, never()).setPublishedAt(org.mockito.ArgumentMatchers.any());
         verify(evaluation, never()).setTotalScore(org.mockito.ArgumentMatchers.any());
+        verify(evaluation, never()).setLastDraftSavedAt(org.mockito.ArgumentMatchers.any());
         verify(feedback, never()).setIsVisibleToEmployee(org.mockito.ArgumentMatchers.any());
     }
 

@@ -80,6 +80,7 @@ CREATE TABLE evaluation (
     evaluation_type VARCHAR(20) NOT NULL,
     evaluation_status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
     total_score DECIMAL(7,2) NULL,
+    last_draft_saved_at DATETIME NULL,
     submitted_at DATETIME NULL,
     published_at DATETIME NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

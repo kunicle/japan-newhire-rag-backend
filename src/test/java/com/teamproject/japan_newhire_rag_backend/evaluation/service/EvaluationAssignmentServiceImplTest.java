@@ -222,6 +222,7 @@ class EvaluationAssignmentServiceImplTest {
 
         for (Evaluation evaluation : capturedEvaluations()) {
             assertEquals(EvaluationStatus.DRAFT, evaluation.getEvaluationStatus());
+            assertNull(evaluation.getLastDraftSavedAt());
             assertNull(evaluation.getTotalScore());
             assertNull(evaluation.getSubmittedAt());
             assertNull(evaluation.getPublishedAt());
