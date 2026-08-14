@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface EvaluationFeedbackRepository extends JpaRepository<EvaluationFeedback, Long> {
 
+    List<EvaluationFeedback> findByEvaluationId(Long evaluationId);
+
     Optional<EvaluationFeedback> findByEvaluationIdAndEvaluationItemIdAndFeedbackType(
             Long evaluationId,
             Long evaluationItemId,

@@ -63,6 +63,15 @@ public class EvaluationPublishHistory {
                                     EvaluationStatus previousStatus,
                                     EvaluationStatus publishedStatus,
                                     String publishReason) {
+        this(evaluationId, publishedBy, previousStatus, publishedStatus,
+                publishReason, null);
+    }
+
+    public EvaluationPublishHistory(Long evaluationId, Long publishedBy,
+                                    EvaluationStatus previousStatus,
+                                    EvaluationStatus publishedStatus,
+                                    String publishReason,
+                                    LocalDateTime publishedAt) {
         this.evaluationId = evaluationId;
         this.publishedBy = publishedBy;
         this.previousStatus = previousStatus;
@@ -70,12 +79,15 @@ public class EvaluationPublishHistory {
             ? publishedStatus
             : EvaluationStatus.PUBLISHED;
         this.publishReason = publishReason;
+        this.publishedAt = publishedAt;
     }
 
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
-        this.publishedAt = now;
+        if (this.publishedAt == null) {
+            this.publishedAt = now;
+        }
         this.createdAt = now;
     }
 
