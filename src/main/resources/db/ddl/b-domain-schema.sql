@@ -267,3 +267,83 @@ CREATE TABLE document_processing_job_detail (
     ),
     INDEX idx_job_detail_chunk (document_chunk_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE rag_question (
+    rag_question_id BIGINT NOT NULL AUTO_INCREMENT,
+    question_text TEXT NOT NULL,
+    created_by BIGINT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT pk_rag_question PRIMARY KEY (rag_question_id),
+    CONSTRAINT fk_rag_question_created_by
+        FOREIGN KEY (created_by) REFERENCES app_user (app_user_id)
+        ON DELETE RESTRICT,
+    INDEX idx_rag_question_created_by (created_by, created_at)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE rag_search (
+    rag_search_id BIGINT NOT NULL AUTO_INCREMENT,
+    rag_question_id BIGINT NOT NULL,
+    ai_model_id BIGINT NOT NULL,
+    searched_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT pk_rag_search PRIMARY KEY (rag_search_id),
+    CONSTRAINT fk_rag_search_question
+        FOREIGN KEY (rag_question_id) REFERENCES rag_question (rag_question_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_rag_search_ai_model
+        FOREIGN KEY (ai_model_id) REFERENCES ai_model (ai_model_id)
+        ON DELETE RESTRICT,
+    INDEX idx_rag_search_question (rag_question_id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE rag_search_result (
+    rag_search_result_id BIGINT NOT NULL AUTO_INCREMENT,
+    rag_search_id BIGINT NOT NULL,
+    document_chunk_id BIGINT NOT NULL,
+    document_version_id BIGINT NOT NULL,
+    similarity_score DOUBLE NOT NULL,
+    result_rank INT NOT NULL,
+    CONSTRAINT pk_rag_search_result PRIMARY KEY (rag_search_result_id),
+    CONSTRAINT fk_rag_search_result_search
+        FOREIGN KEY (rag_search_id) REFERENCES rag_search (rag_search_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_rag_search_result_chunk
+        FOREIGN KEY (document_chunk_id) REFERENCES document_chunk (document_chunk_id)
+        ON DELETE RESTRICT,
+    CONSTRAINT fk_rag_search_result_version
+        FOREIGN KEY (document_version_id) REFERENCES document_version (document_version_id)
+        ON DELETE RESTRICT,
+    CONSTRAINT ck_rag_search_result_score
+        CHECK (similarity_score >= 0.0),
+    CONSTRAINT ck_rag_search_result_rank
+        CHECK (result_rank > 0),
+    CONSTRAINT uk_rag_search_result_rank
+        UNIQUE (rag_search_id, result_rank)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE rag_answer (
+    rag_answer_id BIGINT NOT NULL AUTO_INCREMENT,
+    rag_search_id BIGINT NOT NULL,
+    answer_text TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT pk_rag_answer PRIMARY KEY (rag_answer_id),
+    CONSTRAINT fk_rag_answer_search
+        FOREIGN KEY (rag_search_id) REFERENCES rag_search (rag_search_id)
+        ON DELETE CASCADE,
+    CONSTRAINT uk_rag_answer_search UNIQUE (rag_search_id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE rag_citation (
+    rag_citation_id BIGINT NOT NULL AUTO_INCREMENT,
+    rag_answer_id BIGINT NOT NULL,
+    document_chunk_id BIGINT NOT NULL,
+    position INT NOT NULL,
+    CONSTRAINT pk_rag_citation PRIMARY KEY (rag_citation_id),
+    CONSTRAINT fk_rag_citation_answer
+        FOREIGN KEY (rag_answer_id) REFERENCES rag_answer (rag_answer_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_rag_citation_chunk
+        FOREIGN KEY (document_chunk_id) REFERENCES document_chunk (document_chunk_id)
+        ON DELETE RESTRICT,
+    CONSTRAINT ck_rag_citation_position CHECK (position > 0),
+    CONSTRAINT uk_rag_citation_position UNIQUE (rag_answer_id, position)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
