@@ -1,5 +1,7 @@
 package com.teamproject.japan_newhire_rag_backend.domain.education.service;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +39,18 @@ public class CourseModuleService {
         this.courseModuleRepository = courseModuleRepository;
         this.courseEnrollmentRepository = courseEnrollmentRepository;
         this.currentUserProvider = currentUserProvider;
+    }
+
+    @Transactional(readOnly = true)
+    public List<CourseModuleResponse> getModules(Long courseId) {
+        validateCurrentHrManager();
+        findActiveCourse(courseId);
+
+        return courseModuleRepository
+                .findAllByCourse_CourseIdOrderByModuleOrderAsc(courseId)
+                .stream()
+                .map(CourseModuleResponse::from)
+                .toList();
     }
 
     @Transactional

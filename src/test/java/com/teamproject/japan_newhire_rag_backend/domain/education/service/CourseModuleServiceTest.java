@@ -1,23 +1,23 @@
 package com.teamproject.japan_newhire_rag_backend.domain.education.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import static org.mockito.ArgumentMatchers.any;
 import org.mockito.Mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -63,6 +63,52 @@ class CourseModuleServiceTest {
                 courseModuleRepository,
                 courseEnrollmentRepository,
                 currentUserProvider);
+    }
+
+    @Test
+    void hrManagerGetsAllModulesInRepositoryOrderIncludingInactive() {
+        Course course = course(10L, CoursePublicationStatus.DRAFT);
+        CourseModule first = module(100L, course, 1, true, true);
+        CourseModule second = module(101L, course, 2, false, false);
+        CourseModule third = module(102L, course, 3, false, true);
+
+        allowHrManager();
+        when(courseRepository.findByCourseIdAndDeletedAtIsNull(10L))
+                .thenReturn(Optional.of(course));
+        when(courseModuleRepository
+                .findAllByCourse_CourseIdOrderByModuleOrderAsc(10L))
+                .thenReturn(List.of(first, second, third));
+
+        List<CourseModuleResponse> responses =
+                courseModuleService.getModules(10L);
+
+        assertThat(responses)
+                .extracting(CourseModuleResponse::moduleOrder)
+                .containsExactly(1, 2, 3);
+        assertThat(responses)
+                .extracting(CourseModuleResponse::active)
+                .containsExactly(true, false, true);
+
+        verify(courseRepository)
+                .findByCourseIdAndDeletedAtIsNull(10L);
+        verify(courseModuleRepository)
+                .findAllByCourse_CourseIdOrderByModuleOrderAsc(10L);
+    }
+
+    @Test
+    void missingOrDeletedCourseCannotBeListed() {
+        allowHrManager();
+        when(courseRepository.findByCourseIdAndDeletedAtIsNull(10L))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> courseModuleService.getModules(10L))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.RESOURCE_NOT_FOUND));
+
+        verifyNoInteractions(
+                courseModuleRepository,
+                courseEnrollmentRepository);
     }
 
     @Test
