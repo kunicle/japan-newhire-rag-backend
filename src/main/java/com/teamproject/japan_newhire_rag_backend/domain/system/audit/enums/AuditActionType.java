@@ -10,7 +10,15 @@ public enum AuditActionType {
     ROLE_REVOKED(AuditTargetType.USER_ROLE, Set.of("roleId", "roleType")),
     DIRECT_MANAGER_CHANGED(
             AuditTargetType.EMPLOYEE,
-            Set.of("managerEmployeeId"));
+            Set.of("managerEmployeeId")),
+    EVALUATION_RESULT_PUBLISHED(
+            AuditTargetType.EVALUATION,
+            Set.of(
+                    "cycleId",
+                    "targetEmployeeId",
+                    "selfEvaluationId",
+                    "managerEvaluationId",
+                    "visibleManagerFeedbackIds"));
 
     private final AuditTargetType targetType;
     private final Set<String> allowedValueKeys;
