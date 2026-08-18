@@ -83,6 +83,10 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/health")
                         .permitAll()
+                        .requestMatchers("/api/admin/users/**")
+                        .hasRole("SYSTEM_ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/hr/employees/*/manager")
+                        .hasRole("HR_MANAGER")
                         .anyRequest()
                         .hasAnyRole(APPLICATION_ROLES))
                 .addFilterBefore(

@@ -47,7 +47,7 @@ public class InternalLoginAuthenticationService {
         }
 
         LocalDateTime attemptedAt = LocalDateTime.now(clock);
-        AppUser appUser = appUserRepository.findByEmail(email).orElse(null);
+        AppUser appUser = appUserRepository.findForUpdateByEmail(email).orElse(null);
 
         if (appUser == null) {
             recordFailure(null, email, LoginFailureReason.INVALID_CREDENTIALS, attemptedAt);

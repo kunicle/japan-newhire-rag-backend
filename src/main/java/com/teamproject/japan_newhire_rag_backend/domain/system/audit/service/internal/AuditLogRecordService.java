@@ -2,6 +2,7 @@ package com.teamproject.japan_newhire_rag_backend.domain.system.audit.service.in
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -76,17 +77,31 @@ public class AuditLogRecordService {
             throw new IllegalArgumentException(
                     "Audit value contains fields not allowed for " + actionType.name());
         }
-        if (value.values().stream().anyMatch(this::isUnsupportedValue)) {
+        if (value.entrySet().stream().anyMatch(entry ->
+                isUnsupportedValue(actionType, entry.getKey(), entry.getValue()))) {
             throw new IllegalArgumentException("Audit values must be scalar values");
         }
     }
 
-    private boolean isUnsupportedValue(Object value) {
+    private boolean isUnsupportedValue(AuditActionType actionType, String key, Object value) {
+        if (actionType == AuditActionType.EVALUATION_RESULT_PUBLISHED
+                && "visibleManagerFeedbackIds".equals(key)) {
+            return !(value instanceof List<?> ids)
+                    || ids.stream().anyMatch(this::isInvalidId);
+        }
         return value != null
                 && !(value instanceof String)
                 && !(value instanceof Number)
                 && !(value instanceof Boolean)
                 && !(value instanceof Enum<?>);
+    }
+
+    private boolean isInvalidId(Object value) {
+        return !(value instanceof Byte
+                || value instanceof Short
+                || value instanceof Integer
+                || value instanceof Long)
+                || ((Number) value).longValue() <= 0;
     }
 
     private String serialize(Map<String, ?> value) {

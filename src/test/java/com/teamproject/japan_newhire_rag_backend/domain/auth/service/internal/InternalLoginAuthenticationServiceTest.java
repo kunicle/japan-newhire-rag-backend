@@ -68,12 +68,13 @@ class InternalLoginAuthenticationServiceTest {
     @Test
     void authenticateRecordsSuccessAndReturnsAppUserId() {
         AppUser appUser = appUser(1L, AccountStatus.ACTIVE, null);
-        when(appUserRepository.findByEmail(EMAIL)).thenReturn(Optional.of(appUser));
+        when(appUserRepository.findForUpdateByEmail(EMAIL)).thenReturn(Optional.of(appUser));
         when(passwordEncoder.matches(RAW_PASSWORD, PASSWORD_HASH)).thenReturn(true);
 
         assertEquals(1L, service.authenticate(EMAIL, RAW_PASSWORD));
 
         verify(appUser).recordLoginSuccess(NOW);
+        verify(appUserRepository, never()).findByEmail(EMAIL);
         LoginAttempt attempt = capturedAttempt();
         assertEquals(LoginResult.SUCCESS, attempt.getLoginResult());
         assertEquals(appUser, attempt.getAppUser());
@@ -85,7 +86,7 @@ class InternalLoginAuthenticationServiceTest {
     @Test
     void authenticateRecordsPasswordFailureAndIncrementsFailureState() {
         AppUser appUser = appUser(1L, AccountStatus.ACTIVE, null);
-        when(appUserRepository.findByEmail(EMAIL)).thenReturn(Optional.of(appUser));
+        when(appUserRepository.findForUpdateByEmail(EMAIL)).thenReturn(Optional.of(appUser));
         when(passwordEncoder.matches(RAW_PASSWORD, PASSWORD_HASH)).thenReturn(false);
 
         assertThrows(
@@ -101,7 +102,7 @@ class InternalLoginAuthenticationServiceTest {
 
     @Test
     void authenticateRecordsFailureWithoutAppUserWhenEmailDoesNotExist() {
-        when(appUserRepository.findByEmail(EMAIL)).thenReturn(Optional.empty());
+        when(appUserRepository.findForUpdateByEmail(EMAIL)).thenReturn(Optional.empty());
 
         assertThrows(
                 BadCredentialsException.class,
@@ -118,7 +119,7 @@ class InternalLoginAuthenticationServiceTest {
     void authenticateRejectsUnexpiredLockedAccountAndRecordsFailure() {
         AppUser appUser = appUser(1L, AccountStatus.LOCKED, null);
         when(appUser.unlockIfExpired(NOW)).thenReturn(false);
-        when(appUserRepository.findByEmail(EMAIL)).thenReturn(Optional.of(appUser));
+        when(appUserRepository.findForUpdateByEmail(EMAIL)).thenReturn(Optional.of(appUser));
 
         assertThrows(LockedException.class, () -> service.authenticate(EMAIL, RAW_PASSWORD));
 
@@ -132,7 +133,7 @@ class InternalLoginAuthenticationServiceTest {
         AppUser appUser = appUser(1L, AccountStatus.LOCKED, null);
         when(appUser.unlockIfExpired(NOW)).thenReturn(true);
         when(appUser.getAccountStatus()).thenReturn(AccountStatus.LOCKED, AccountStatus.ACTIVE);
-        when(appUserRepository.findByEmail(EMAIL)).thenReturn(Optional.of(appUser));
+        when(appUserRepository.findForUpdateByEmail(EMAIL)).thenReturn(Optional.of(appUser));
         when(passwordEncoder.matches(RAW_PASSWORD, PASSWORD_HASH)).thenReturn(true);
 
         assertEquals(1L, service.authenticate(EMAIL, RAW_PASSWORD));
@@ -144,7 +145,7 @@ class InternalLoginAuthenticationServiceTest {
     @Test
     void authenticateRejectsInactiveAccountAndRecordsFailure() {
         AppUser appUser = appUser(1L, AccountStatus.INACTIVE, null);
-        when(appUserRepository.findByEmail(EMAIL)).thenReturn(Optional.of(appUser));
+        when(appUserRepository.findForUpdateByEmail(EMAIL)).thenReturn(Optional.of(appUser));
 
         assertThrows(DisabledException.class, () -> service.authenticate(EMAIL, RAW_PASSWORD));
 
@@ -156,7 +157,7 @@ class InternalLoginAuthenticationServiceTest {
     @Test
     void authenticateRejectsDeletedAccountAndRecordsInactiveFailure() {
         AppUser appUser = appUser(1L, AccountStatus.ACTIVE, NOW.minusDays(1));
-        when(appUserRepository.findByEmail(EMAIL)).thenReturn(Optional.of(appUser));
+        when(appUserRepository.findForUpdateByEmail(EMAIL)).thenReturn(Optional.of(appUser));
 
         assertThrows(DisabledException.class, () -> service.authenticate(EMAIL, RAW_PASSWORD));
 

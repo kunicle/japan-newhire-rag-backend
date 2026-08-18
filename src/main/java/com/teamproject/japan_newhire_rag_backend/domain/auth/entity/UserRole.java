@@ -56,4 +56,23 @@ public class UserRole {
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    public static UserRole grant(
+            AppUser appUser, Role role, AppUser grantedBy, LocalDateTime grantedAt
+    ) {
+        UserRole userRole = new UserRole();
+        userRole.appUser = appUser;
+        userRole.role = role;
+        userRole.grantedBy = grantedBy;
+        userRole.grantedAt = grantedAt;
+        return userRole;
+    }
+
+    public void revoke(AppUser revokedBy, LocalDateTime revokedAt) {
+        if (this.revokedAt != null) {
+            throw new IllegalStateException("Only an active user role can be revoked");
+        }
+        this.revokedBy = revokedBy;
+        this.revokedAt = revokedAt;
+    }
 }
