@@ -87,6 +87,8 @@ public class SecurityConfig {
                         .hasRole("SYSTEM_ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/hr/employees/*/manager")
                         .hasRole("HR_MANAGER")
+                        .requestMatchers(HttpMethod.POST, "/api/documents")
+                        .hasAnyRole("HR_MANAGER", "SYSTEM_ADMIN")
                         .anyRequest()
                         .hasAnyRole(APPLICATION_ROLES))
                 .addFilterBefore(
