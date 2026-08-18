@@ -1,8 +1,11 @@
 package com.teamproject.japan_newhire_rag_backend.document.validation;
 
-public class InvalidTxtDocumentException extends RuntimeException {
+import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCode;
+import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessException;
+
+public class InvalidTxtDocumentException extends BusinessException {
 
     public InvalidTxtDocumentException(String message) {
-        super(message);
+        super(ErrorCode.INVALID_REQUEST, message);
     }
 }
