@@ -5,4 +5,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.education.entity.CourseEnrollment;
 
 public interface CourseEnrollmentRepository extends JpaRepository<CourseEnrollment, Long> {
+
+    boolean existsByCourse_CourseId(Long courseId);
 }
