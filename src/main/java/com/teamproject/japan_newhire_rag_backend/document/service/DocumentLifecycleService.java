@@ -5,6 +5,8 @@ import java.time.LocalDate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCode;
+import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessException;
 import com.teamproject.japan_newhire_rag_backend.document.category.entity.DocumentCategory;
 import com.teamproject.japan_newhire_rag_backend.document.category.repository.DocumentCategoryRepository;
 import com.teamproject.japan_newhire_rag_backend.document.entity.Document;
@@ -45,7 +47,9 @@ public class DocumentLifecycleService {
         DocumentCategory category = documentCategoryRepository.findById(documentCategoryId)
                 .orElseThrow(() -> new IllegalArgumentException("문서 카테고리가 없습니다."));
         if (!category.isActive()) {
-            throw new IllegalStateException("비활성 문서 카테고리는 사용할 수 없습니다.");
+            throw new BusinessException(
+                    ErrorCode.CONFLICT,
+                    "비활성 문서 카테고리는 사용할 수 없습니다.");
         }
 
         Document document = Document.create(

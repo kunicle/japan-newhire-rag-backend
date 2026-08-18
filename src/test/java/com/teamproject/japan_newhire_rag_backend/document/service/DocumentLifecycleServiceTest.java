@@ -2,6 +2,7 @@ package com.teamproject.japan_newhire_rag_backend.document.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -17,6 +18,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
+import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCode;
+import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessException;
 import com.teamproject.japan_newhire_rag_backend.document.category.entity.DocumentCategory;
 import com.teamproject.japan_newhire_rag_backend.document.category.repository.DocumentCategoryRepository;
 import com.teamproject.japan_newhire_rag_backend.document.entity.Document;
@@ -95,6 +98,29 @@ class DocumentLifecycleServiceTest {
                 10L, "규정", null, "v1", "규정.txt", "/documents/규정.txt", 10L, 30L))
                 .isInstanceOf(IllegalArgumentException.class);
 
+        verify(documentRepository, never()).save(any());
+        verify(versionRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectsInactiveDocumentCategory() {
+        DocumentCategory category = mock(DocumentCategory.class);
+        when(category.isActive()).thenReturn(false);
+        when(categoryRepository.findById(10L)).thenReturn(Optional.of(category));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.createDocumentWithInitialVersion(
+                        10L,
+                        "규정",
+                        null,
+                        "v1",
+                        "규정.txt",
+                        "/documents/규정.txt",
+                        10L,
+                        30L));
+
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
         verify(documentRepository, never()).save(any());
         verify(versionRepository, never()).save(any());
     }
