@@ -5,8 +5,11 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 
 import com.teamproject.japan_newhire_rag_backend.document.version.entity.DocumentVersion;
+
+import jakarta.persistence.LockModeType;
 
 public interface DocumentVersionRepository extends JpaRepository<DocumentVersion, Long> {
 
@@ -15,6 +18,9 @@ public interface DocumentVersionRepository extends JpaRepository<DocumentVersion
             String versionName);
 
     Optional<DocumentVersion> findByDocument_DocumentIdAndIsActiveTrue(Long documentId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<DocumentVersion> findForUpdateByDocument_DocumentId(Long documentId);
 
     List<DocumentVersion>
             findByDocument_DocumentStatusAndDocument_DeletedAtIsNullAndPublicationStatusAndIsActiveTrueAndEffectiveDateLessThanEqual(

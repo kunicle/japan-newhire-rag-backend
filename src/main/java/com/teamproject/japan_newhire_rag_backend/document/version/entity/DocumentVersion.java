@@ -106,4 +106,22 @@ public class DocumentVersion extends BaseEntity {
                 storedFilePath,
                 fileSize);
     }
+
+    public void publish(Long publishedBy, LocalDateTime publishedAt) {
+        if (publishedBy == null) {
+            throw new IllegalArgumentException("publishedBy는 null일 수 없습니다.");
+        }
+        if (publishedAt == null) {
+            throw new IllegalArgumentException("publishedAt는 null일 수 없습니다.");
+        }
+
+        this.publicationStatus = "PUBLIC";
+        this.isActive = true;
+        this.publishedBy = publishedBy;
+        this.publishedAt = publishedAt;
+    }
+
+    public void deactivate() {
+        this.isActive = false;
+    }
 }
