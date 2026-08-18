@@ -2,9 +2,12 @@ package com.teamproject.japan_newhire_rag_backend.document.processing.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -16,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.teamproject.japan_newhire_rag_backend.document.processing.entity.DocumentProcessingJob;
 import com.teamproject.japan_newhire_rag_backend.document.service.DocumentLifecycleService;
+import com.teamproject.japan_newhire_rag_backend.document.storage.DocumentStorageService;
 import com.teamproject.japan_newhire_rag_backend.document.validation.InvalidTxtDocumentException;
 import com.teamproject.japan_newhire_rag_backend.document.validation.TxtDocumentValidator;
 import com.teamproject.japan_newhire_rag_backend.document.version.entity.DocumentVersion;
@@ -23,6 +27,7 @@ import com.teamproject.japan_newhire_rag_backend.document.version.entity.Documen
 class DocumentIngestionOrchestrationServiceTest {
 
     private final TxtDocumentValidator validator = mock(TxtDocumentValidator.class);
+    private final DocumentStorageService storageService = mock(DocumentStorageService.class);
     private final DocumentLifecycleService lifecycleService = mock(DocumentLifecycleService.class);
     private final DocumentChunkingProcessingService chunkingService =
             mock(DocumentChunkingProcessingService.class);
@@ -31,24 +36,26 @@ class DocumentIngestionOrchestrationServiceTest {
     private final DocumentIngestionOrchestrationService service =
             new DocumentIngestionOrchestrationService(
                     validator,
+                    storageService,
                     lifecycleService,
                     chunkingService,
                     embeddingService);
 
     @Test
-    void ingestsDocumentThroughChunkingAndEmbedding() {
+    void ingestsStoredDocumentThroughChunkingAndEmbedding() {
         String original = "신입사원은 최초 로그인 후 비밀번호를 변경합니다.";
         byte[] content = original.getBytes(StandardCharsets.UTF_8);
         DocumentVersion documentVersion = mock(DocumentVersion.class);
         DocumentProcessingJob processingJob = mock(DocumentProcessingJob.class);
         DocumentProcessingJob finalJob = mock(DocumentProcessingJob.class);
+        when(storageService.store("신입사원.txt", content)).thenReturn("stored-uuid.txt");
         when(lifecycleService.createDocumentWithInitialVersion(
                 10L,
                 "신입사원 규정",
                 "최초 로그인 안내",
                 "2026-01",
                 "신입사원.txt",
-                "/documents/신입사원.txt",
+                "stored-uuid.txt",
                 content.length,
                 30L)).thenReturn(documentVersion);
         when(chunkingService.processChunking(documentVersion, original, 500, 50, 30L))
@@ -62,22 +69,23 @@ class DocumentIngestionOrchestrationServiceTest {
                 "최초 로그인 안내",
                 "2026-01",
                 "신입사원.txt",
-                "/documents/신입사원.txt",
                 content,
                 500,
                 50,
                 30L);
 
         assertThat(result).isSameAs(finalJob);
-        InOrder order = inOrder(validator, lifecycleService, chunkingService, embeddingService);
+        InOrder order = inOrder(
+                validator, storageService, lifecycleService, chunkingService, embeddingService);
         order.verify(validator).validate("신입사원.txt", content);
+        order.verify(storageService).store("신입사원.txt", content);
         order.verify(lifecycleService).createDocumentWithInitialVersion(
                 10L,
                 "신입사원 규정",
                 "최초 로그인 안내",
                 "2026-01",
                 "신입사원.txt",
-                "/documents/신입사원.txt",
+                "stored-uuid.txt",
                 content.length,
                 30L);
         order.verify(chunkingService).processChunking(documentVersion, original, 500, 50, 30L);
@@ -94,31 +102,67 @@ class DocumentIngestionOrchestrationServiceTest {
         assertThatThrownBy(() -> ingest("규정.pdf", content))
                 .isSameAs(failure);
 
+        verifyNoInteractions(storageService);
         verifyNoInteractions(lifecycleService, chunkingService, embeddingService);
     }
 
     @Test
-    void doesNotChunkOrEmbedWhenDocumentLifecycleFails() {
+    void doesNotPersistOrProcessWhenStorageFails() {
+        byte[] content = "내용".getBytes(StandardCharsets.UTF_8);
+        IllegalStateException failure = new IllegalStateException("storage failure");
+        when(storageService.store("규정.txt", content)).thenThrow(failure);
+
+        assertThatThrownBy(() -> ingest("규정.txt", content))
+                .isSameAs(failure);
+
+        verify(storageService, never()).delete(anyString());
+        verifyNoInteractions(lifecycleService, chunkingService, embeddingService);
+    }
+
+    @Test
+    void deletesStoredFileWhenDocumentLifecycleFails() {
         byte[] content = "내용".getBytes(StandardCharsets.UTF_8);
         IllegalArgumentException failure = new IllegalArgumentException("category failure");
+        when(storageService.store("규정.txt", content)).thenReturn("stored-uuid.txt");
         when(lifecycleService.createDocumentWithInitialVersion(
-                10L, "규정", null, "v1", "규정.txt", "/rules.txt", content.length, 30L))
+                10L, "규정", null, "v1", "규정.txt", "stored-uuid.txt", content.length, 30L))
                 .thenThrow(failure);
 
         assertThatThrownBy(() -> ingest("규정.txt", content))
                 .isSameAs(failure);
 
+        verify(storageService).delete("stored-uuid.txt");
         verifyNoInteractions(chunkingService, embeddingService);
     }
 
     @Test
-    void doesNotEmbedWhenChunkingFails() {
+    void preservesLifecycleFailureWhenCleanupAlsoFails() {
+        byte[] content = "내용".getBytes(StandardCharsets.UTF_8);
+        IllegalArgumentException lifecycleFailure = new IllegalArgumentException("category failure");
+        IllegalStateException cleanupFailure = new IllegalStateException("cleanup failure");
+        when(storageService.store("규정.txt", content)).thenReturn("stored-uuid.txt");
+        when(lifecycleService.createDocumentWithInitialVersion(
+                10L, "규정", null, "v1", "규정.txt", "stored-uuid.txt", content.length, 30L))
+                .thenThrow(lifecycleFailure);
+        doThrow(cleanupFailure).when(storageService).delete("stored-uuid.txt");
+
+        assertThatThrownBy(() -> ingest("규정.txt", content))
+                .isSameAs(lifecycleFailure);
+
+        assertThat(lifecycleFailure.getSuppressed()).containsExactly(cleanupFailure);
+        verify(storageService).delete("stored-uuid.txt");
+        verifyNoInteractions(chunkingService, embeddingService);
+    }
+
+    @Test
+    void doesNotDeleteStoredFileOrEmbedWhenChunkingFails() {
         byte[] content = "내용".getBytes(StandardCharsets.UTF_8);
         String text = new String(content, StandardCharsets.UTF_8);
         DocumentVersion documentVersion = mock(DocumentVersion.class);
         IllegalStateException failure = new IllegalStateException("chunking failure");
+        when(storageService.store("규정.txt", content)).thenReturn("stored-uuid.txt");
         when(lifecycleService.createDocumentWithInitialVersion(
-                10L, "규정", null, "v1", "규정.txt", "/rules.txt", content.length, 30L))
+                10L, "규정", null, "v1", "규정.txt", "stored-uuid.txt", content.length, 30L))
                 .thenReturn(documentVersion);
         when(chunkingService.processChunking(documentVersion, text, 500, 50, 30L))
                 .thenThrow(failure);
@@ -126,7 +170,30 @@ class DocumentIngestionOrchestrationServiceTest {
         assertThatThrownBy(() -> ingest("규정.txt", content))
                 .isSameAs(failure);
 
+        verify(storageService, never()).delete(anyString());
         verifyNoInteractions(embeddingService);
+    }
+
+    @Test
+    void doesNotDeleteStoredFileWhenEmbeddingFails() {
+        byte[] content = "내용".getBytes(StandardCharsets.UTF_8);
+        String text = new String(content, StandardCharsets.UTF_8);
+        DocumentVersion documentVersion = mock(DocumentVersion.class);
+        DocumentProcessingJob processingJob = mock(DocumentProcessingJob.class);
+        IllegalStateException failure = new IllegalStateException("embedding failure");
+        when(storageService.store("규정.txt", content)).thenReturn("stored-uuid.txt");
+        when(lifecycleService.createDocumentWithInitialVersion(
+                10L, "규정", null, "v1", "규정.txt", "stored-uuid.txt", content.length, 30L))
+                .thenReturn(documentVersion);
+        when(chunkingService.processChunking(documentVersion, text, 500, 50, 30L))
+                .thenReturn(processingJob);
+        when(embeddingService.processEmbeddings(processingJob, documentVersion))
+                .thenThrow(failure);
+
+        assertThatThrownBy(() -> ingest("규정.txt", content))
+                .isSameAs(failure);
+
+        verify(storageService, never()).delete(anyString());
     }
 
     @Test
@@ -136,8 +203,9 @@ class DocumentIngestionOrchestrationServiceTest {
         DocumentVersion documentVersion = mock(DocumentVersion.class);
         DocumentProcessingJob processingJob = mock(DocumentProcessingJob.class);
         DocumentProcessingJob failedJob = mock(DocumentProcessingJob.class);
+        when(storageService.store("규정.txt", content)).thenReturn("stored-uuid.txt");
         when(lifecycleService.createDocumentWithInitialVersion(
-                10L, "규정", null, "v1", "규정.txt", "/rules.txt", content.length, 30L))
+                10L, "규정", null, "v1", "규정.txt", "stored-uuid.txt", content.length, 30L))
                 .thenReturn(documentVersion);
         when(chunkingService.processChunking(documentVersion, text, 500, 50, 30L))
                 .thenReturn(processingJob);
@@ -159,7 +227,6 @@ class DocumentIngestionOrchestrationServiceTest {
                         String.class,
                         String.class,
                         String.class,
-                        String.class,
                         byte[].class,
                         int.class,
                         int.class,
@@ -174,7 +241,6 @@ class DocumentIngestionOrchestrationServiceTest {
                 null,
                 "v1",
                 originalFileName,
-                "/rules.txt",
                 content,
                 500,
                 50,
