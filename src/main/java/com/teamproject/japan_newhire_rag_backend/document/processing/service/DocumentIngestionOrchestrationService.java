@@ -39,8 +39,6 @@ public class DocumentIngestionOrchestrationService {
             String versionName,
             String originalFileName,
             byte[] content,
-            int maxChunkSize,
-            int overlapSize,
             Long createdByAppUserId) {
         txtDocumentValidator.validate(originalFileName, content);
         String text = new String(content, StandardCharsets.UTF_8);
@@ -69,8 +67,6 @@ public class DocumentIngestionOrchestrationService {
         DocumentProcessingJob job = documentChunkingProcessingService.processChunking(
                 documentVersion,
                 text,
-                maxChunkSize,
-                overlapSize,
                 createdByAppUserId);
         DocumentProcessingJob finalJob =
                 documentEmbeddingOrchestrationService.processEmbeddings(job, documentVersion);

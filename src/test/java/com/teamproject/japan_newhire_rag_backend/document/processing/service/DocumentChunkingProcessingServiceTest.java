@@ -31,14 +31,13 @@ class DocumentChunkingProcessingServiceTest {
         DocumentChunkingProcessingService service = new DocumentChunkingProcessingService(
                 jobRepository.proxy(),
                 detailRepository.proxy(),
-                chunkPersistenceService);
+                chunkPersistenceService,
+                new DocumentChunkProperties(5, 1));
         DocumentVersion documentVersion = documentVersion();
 
         DocumentProcessingJob job = service.processChunking(
                 documentVersion,
                 "abcdefghijkl",
-                5,
-                1,
                 10L);
 
         assertThat(chunkRepository.saveAllCallCount).isEqualTo(1);
@@ -80,8 +79,6 @@ class DocumentChunkingProcessingServiceTest {
                         "processChunking",
                         DocumentVersion.class,
                         String.class,
-                        int.class,
-                        int.class,
                         Long.class)
                 .getAnnotation(Transactional.class);
 

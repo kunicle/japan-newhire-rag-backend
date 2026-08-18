@@ -20,22 +20,23 @@ public class DocumentChunkingProcessingService {
     private final DocumentProcessingJobRepository documentProcessingJobRepository;
     private final DocumentProcessingJobDetailRepository documentProcessingJobDetailRepository;
     private final DocumentChunkPersistenceService documentChunkPersistenceService;
+    private final DocumentChunkProperties documentChunkProperties;
 
     public DocumentChunkingProcessingService(
             DocumentProcessingJobRepository documentProcessingJobRepository,
             DocumentProcessingJobDetailRepository documentProcessingJobDetailRepository,
-            DocumentChunkPersistenceService documentChunkPersistenceService) {
+            DocumentChunkPersistenceService documentChunkPersistenceService,
+            DocumentChunkProperties documentChunkProperties) {
         this.documentProcessingJobRepository = documentProcessingJobRepository;
         this.documentProcessingJobDetailRepository = documentProcessingJobDetailRepository;
         this.documentChunkPersistenceService = documentChunkPersistenceService;
+        this.documentChunkProperties = documentChunkProperties;
     }
 
     @Transactional
     public DocumentProcessingJob processChunking(
             DocumentVersion documentVersion,
             String text,
-            int maxChunkSize,
-            int overlapSize,
             Long createdBy) {
         DocumentProcessingJob newJob = DocumentProcessingJob.create(documentVersion, createdBy);
         DocumentProcessingJob job = documentProcessingJobRepository.save(newJob);
@@ -44,8 +45,8 @@ public class DocumentChunkingProcessingService {
         List<DocumentChunk> savedChunks = documentChunkPersistenceService.splitAndSave(
                 documentVersion,
                 text,
-                maxChunkSize,
-                overlapSize);
+                documentChunkProperties.maxChunkSize(),
+                documentChunkProperties.overlapSize());
         job.recordTotalChunkCount(savedChunks.size());
 
         LocalDateTime processedAt = LocalDateTime.now();

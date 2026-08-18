@@ -65,7 +65,7 @@ class DocumentIngestionOrchestrationServiceTest {
                 "stored-uuid.txt",
                 content.length,
                 30L)).thenReturn(documentVersion);
-        when(chunkingService.processChunking(documentVersion, original, 500, 50, 30L))
+        when(chunkingService.processChunking(documentVersion, original, 30L))
                 .thenReturn(processingJob);
         when(embeddingService.processEmbeddings(processingJob, documentVersion))
                 .thenReturn(finalJob);
@@ -77,8 +77,6 @@ class DocumentIngestionOrchestrationServiceTest {
                 "2026-01",
                 "신입사원.txt",
                 content,
-                500,
-                50,
                 30L);
 
         assertThat(result.documentId()).isEqualTo(99L);
@@ -98,7 +96,7 @@ class DocumentIngestionOrchestrationServiceTest {
                 "stored-uuid.txt",
                 content.length,
                 30L);
-        order.verify(chunkingService).processChunking(documentVersion, original, 500, 50, 30L);
+        order.verify(chunkingService).processChunking(documentVersion, original, 30L);
         order.verify(embeddingService).processEmbeddings(processingJob, documentVersion);
     }
 
@@ -174,7 +172,7 @@ class DocumentIngestionOrchestrationServiceTest {
         when(lifecycleService.createDocumentWithInitialVersion(
                 10L, "규정", null, "v1", "규정.txt", "stored-uuid.txt", content.length, 30L))
                 .thenReturn(documentVersion);
-        when(chunkingService.processChunking(documentVersion, text, 500, 50, 30L))
+        when(chunkingService.processChunking(documentVersion, text, 30L))
                 .thenThrow(failure);
 
         assertThatThrownBy(() -> ingest("규정.txt", content))
@@ -195,7 +193,7 @@ class DocumentIngestionOrchestrationServiceTest {
         when(lifecycleService.createDocumentWithInitialVersion(
                 10L, "규정", null, "v1", "규정.txt", "stored-uuid.txt", content.length, 30L))
                 .thenReturn(documentVersion);
-        when(chunkingService.processChunking(documentVersion, text, 500, 50, 30L))
+        when(chunkingService.processChunking(documentVersion, text, 30L))
                 .thenReturn(processingJob);
         when(embeddingService.processEmbeddings(processingJob, documentVersion))
                 .thenThrow(failure);
@@ -223,7 +221,7 @@ class DocumentIngestionOrchestrationServiceTest {
         when(lifecycleService.createDocumentWithInitialVersion(
                 10L, "규정", null, "v1", "규정.txt", "stored-uuid.txt", content.length, 30L))
                 .thenReturn(documentVersion);
-        when(chunkingService.processChunking(documentVersion, text, 500, 50, 30L))
+        when(chunkingService.processChunking(documentVersion, text, 30L))
                 .thenReturn(processingJob);
         when(embeddingService.processEmbeddings(processingJob, documentVersion))
                 .thenReturn(failedJob);
@@ -247,8 +245,6 @@ class DocumentIngestionOrchestrationServiceTest {
                         String.class,
                         String.class,
                         byte[].class,
-                        int.class,
-                        int.class,
                         Long.class)
                 .getAnnotation(Transactional.class)).isNull();
     }
@@ -261,8 +257,6 @@ class DocumentIngestionOrchestrationServiceTest {
                 "v1",
                 originalFileName,
                 content,
-                500,
-                50,
                 30L);
     }
 }
