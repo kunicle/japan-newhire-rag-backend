@@ -53,4 +53,46 @@ public class Course extends BaseEntity {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    public static Course create(
+            String courseName,
+            String courseDescription,
+            boolean required,
+            LocalDate trainingStartDate,
+            LocalDate trainingEndDate,
+            Long createdBy
+    ) {
+        Course course = new Course();
+        course.courseName = courseName;
+        course.courseDescription = courseDescription;
+        course.required = required;
+        course.trainingStartDate = trainingStartDate;
+        course.trainingEndDate = trainingEndDate;
+        course.publicationStatus = CoursePublicationStatus.DRAFT;
+        course.createdBy = createdBy;
+        course.deletedAt = null;
+        return course;
+    }
+
+    public void updateBasicInformation(
+            String courseName,
+            String courseDescription,
+            boolean required,
+            LocalDate trainingStartDate,
+            LocalDate trainingEndDate
+    ) {
+        this.courseName = courseName;
+        this.courseDescription = courseDescription;
+        this.required = required;
+        this.trainingStartDate = trainingStartDate;
+        this.trainingEndDate = trainingEndDate;
+    }
+
+    public void changePublicationStatus(CoursePublicationStatus publicationStatus) {
+        this.publicationStatus = publicationStatus;
+    }
+
+    public void softDelete(LocalDateTime deletedAt) {
+        this.deletedAt = deletedAt;
+    }
 }

@@ -50,4 +50,41 @@ public class CourseModule extends BaseEntity {
 
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
+
+    public static CourseModule create(
+            Course course,
+            String moduleTitle,
+            String moduleContent,
+            String referenceUrl,
+            int moduleOrder,
+            boolean required
+    ) {
+        CourseModule module = new CourseModule();
+        module.course = course;
+        module.moduleTitle = moduleTitle;
+        module.moduleContent = moduleContent;
+        module.referenceUrl = referenceUrl;
+        module.moduleOrder = moduleOrder;
+        module.required = required;
+        module.active = true;
+        return module;
+    }
+
+    public void updateBasicInformation(
+            String moduleTitle,
+            String moduleContent,
+            String referenceUrl,
+            int moduleOrder,
+            boolean required
+    ) {
+        this.moduleTitle = moduleTitle;
+        this.moduleContent = moduleContent;
+        this.referenceUrl = referenceUrl;
+        this.moduleOrder = moduleOrder;
+        this.required = required;
+    }
+
+    public void changeActive(boolean active) {
+        this.active = active;
+    }
 }
