@@ -34,7 +34,7 @@ public class RagOrchestrator {
         this.evidenceThreshold = evidenceThreshold;
     }
 
-    public RagOrchestrationResult handle(
+    public RagSearchOrchestrationResult search(
             String question,
             Set<Long> allowedDocumentVersionIds,
             String providerName,
@@ -58,28 +58,36 @@ public class RagOrchestrator {
                         searchResponse.searchResults(),
                         allowedDocumentVersionIds);
 
-        List<Double> similarityScores = verifiedSearchResults.stream()
-                .map(AiRagSearchResultItem::similarityScore)
-                .toList();
-        boolean hasSufficientEvidence =
-                evidenceThresholdChecker.hasSufficientEvidence(
-                        similarityScores,
-                        evidenceThreshold);
+        return new RagSearchOrchestrationResult(
+                hasSufficientEvidence(verifiedSearchResults),
+                verifiedSearchResults);
+    }
 
-        if (!hasSufficientEvidence) {
-            return new RagOrchestrationResult(false, null, List.of());
+    public RagGenerationOrchestrationResult generate(
+            String question,
+            RagSearchOrchestrationResult searchResult) {
+        if (question == null || searchResult == null) {
+            throw new IllegalArgumentException("RAG 생성 입력은 null일 수 없습니다.");
+        }
+        if (!searchResult.hasSufficientEvidence()
+                || !hasSufficientEvidence(searchResult.verifiedSearchResults())) {
+            throw new IllegalStateException("증거가 불충분한 상태에서는 답변을 생성할 수 없습니다.");
         }
 
         AiRagGenerateRequest generateRequest =
-                new AiRagGenerateRequest(question, verifiedSearchResults);
+                new AiRagGenerateRequest(question, searchResult.verifiedSearchResults());
         AiRagGenerateResponse generateResponse = aiRagClient.generate(generateRequest);
         List<Long> validCitedChunkIds = citationValidator.filterValidCitations(
                 generateResponse.citedChunkIds(),
-                verifiedSearchResults);
+                searchResult.verifiedSearchResults());
 
-        return new RagOrchestrationResult(
-                true,
-                generateResponse.answer(),
-                validCitedChunkIds);
+        return new RagGenerationOrchestrationResult(generateResponse.answer(), validCitedChunkIds);
+    }
+
+    private boolean hasSufficientEvidence(List<AiRagSearchResultItem> verifiedSearchResults) {
+        List<Double> similarityScores = verifiedSearchResults.stream()
+                .map(AiRagSearchResultItem::similarityScore)
+                .toList();
+        return evidenceThresholdChecker.hasSufficientEvidence(similarityScores, evidenceThreshold);
     }
 }

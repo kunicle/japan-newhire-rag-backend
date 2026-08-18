@@ -68,11 +68,9 @@ public class RagAiConfiguration {
     @Bean
     public RagQueryService ragQueryService(
             DocumentSearchScopeService documentSearchScopeService,
-            EmbeddingModelSelectionService embeddingModelSelectionService,
-            RagOrchestrator ragOrchestrator) {
+            EmbeddingModelSelectionService embeddingModelSelectionService) {
         return new RagQueryService(
                 documentSearchScopeService,
-                embeddingModelSelectionService,
-                ragOrchestrator);
+                embeddingModelSelectionService);
     }
 }

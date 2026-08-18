@@ -65,9 +65,6 @@ class RagAiConfigurationTest {
             assertSame(
                     embeddingModelSelectionService,
                     ReflectionTestUtils.getField(ragQueryService, "embeddingModelSelectionService"));
-            assertSame(
-                    ragOrchestrator,
-                    ReflectionTestUtils.getField(ragQueryService, "ragOrchestrator"));
         }
     }
 }

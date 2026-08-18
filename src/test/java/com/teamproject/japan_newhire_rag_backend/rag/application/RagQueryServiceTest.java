@@ -1,18 +1,14 @@
 package com.teamproject.japan_newhire_rag_backend.rag.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.same;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -24,8 +20,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.teamproject.japan_newhire_rag_backend.document.access.service.DocumentSearchScopeService;
 import com.teamproject.japan_newhire_rag_backend.rag.model.EmbeddingModelSelection;
 import com.teamproject.japan_newhire_rag_backend.rag.model.service.EmbeddingModelSelectionService;
-import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagOrchestrationResult;
-import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagOrchestrator;
 
 @ExtendWith(MockitoExtension.class)
 class RagQueryServiceTest {
@@ -36,116 +30,31 @@ class RagQueryServiceTest {
     @Mock
     private EmbeddingModelSelectionService embeddingModelSelectionService;
 
-    @Mock
-    private RagOrchestrator ragOrchestrator;
-
     private RagQueryService service;
 
     @BeforeEach
     void setUp() {
         service = new RagQueryService(
                 documentSearchScopeService,
-                embeddingModelSelectionService,
-                ragOrchestrator);
-    }
-
-    @Test
-    void returnsInsufficientEvidenceWithoutCallingOrchestratorForEmptyScope() {
-        when(documentSearchScopeService.findAllowedDocumentVersionIds()).thenReturn(Set.of());
-
-        RagOrchestrationResult result = service.handle("취업 규칙을 알려주세요");
-
-        assertFalse(result.hasSufficientEvidence());
-        assertNull(result.answer());
-        assertEquals(List.of(), result.validCitedChunkIds());
-        verifyNoInteractions(embeddingModelSelectionService, ragOrchestrator);
-    }
-
-    @Test
-    void passesSameAllowedScopeToOrchestrator() {
-        Set<Long> allowedDocumentVersionIds = Set.of(10L, 20L);
-        RagOrchestrationResult expected = new RagOrchestrationResult(false, null, List.of());
-        when(documentSearchScopeService.findAllowedDocumentVersionIds())
-                .thenReturn(allowedDocumentVersionIds);
-        when(embeddingModelSelectionService.selectDefaultEmbeddingModel())
-                .thenReturn(modelSelection());
-        when(ragOrchestrator.handle(
-                "질문", allowedDocumentVersionIds, "provider-a", "model-a"))
-                .thenReturn(expected);
-
-        service.handle("질문");
-
-        verify(ragOrchestrator).handle(
-                eq("질문"),
-                same(allowedDocumentVersionIds),
-                eq("provider-a"),
-                eq("model-a"));
-    }
-
-    @Test
-    void returnsExactResultFromOrchestrator() {
-        Set<Long> allowedDocumentVersionIds = Set.of(10L);
-        RagOrchestrationResult expected =
-                new RagOrchestrationResult(true, "답변", List.of(100L));
-        when(documentSearchScopeService.findAllowedDocumentVersionIds())
-                .thenReturn(allowedDocumentVersionIds);
-        when(embeddingModelSelectionService.selectDefaultEmbeddingModel())
-                .thenReturn(modelSelection());
-        when(ragOrchestrator.handle(
-                "질문", allowedDocumentVersionIds, "provider-a", "model-a"))
-                .thenReturn(expected);
-
-        RagOrchestrationResult actual = service.handle("질문");
-
-        assertSame(expected, actual);
-    }
-
-    @Test
-    void propagatesDocumentSearchScopeServiceExceptionWithoutCallingOrchestrator() {
-        IllegalStateException expected = new IllegalStateException("scope lookup failed");
-        when(documentSearchScopeService.findAllowedDocumentVersionIds()).thenThrow(expected);
-
-        IllegalStateException actual =
-                assertThrows(IllegalStateException.class, () -> service.handle("질문"));
-
-        assertSame(expected, actual);
-        verifyNoInteractions(embeddingModelSelectionService, ragOrchestrator);
-    }
-
-    @Test
-    void propagatesRagOrchestratorException() {
-        Set<Long> allowedDocumentVersionIds = Set.of(10L);
-        IllegalStateException expected = new IllegalStateException("orchestration failed");
-        when(documentSearchScopeService.findAllowedDocumentVersionIds())
-                .thenReturn(allowedDocumentVersionIds);
-        when(embeddingModelSelectionService.selectDefaultEmbeddingModel())
-                .thenReturn(modelSelection());
-        when(ragOrchestrator.handle(
-                "질문", allowedDocumentVersionIds, "provider-a", "model-a"))
-                .thenThrow(expected);
-
-        IllegalStateException actual =
-                assertThrows(IllegalStateException.class, () -> service.handle("질문"));
-
-        assertSame(expected, actual);
+                embeddingModelSelectionService);
     }
 
     @Test
     void rejectsNullQuestionEvenWhenScopeIsEmpty() {
         lenient().when(documentSearchScopeService.findAllowedDocumentVersionIds()).thenReturn(Set.of());
 
-        assertThrows(IllegalArgumentException.class, () -> service.handle(null));
+        assertThrows(IllegalArgumentException.class, () -> service.prepareSearch(null));
 
-        verifyNoInteractions(embeddingModelSelectionService, ragOrchestrator);
+        verifyNoInteractions(documentSearchScopeService, embeddingModelSelectionService);
     }
 
     @Test
     void rejectsBlankQuestionEvenWhenScopeIsEmpty() {
         lenient().when(documentSearchScopeService.findAllowedDocumentVersionIds()).thenReturn(Set.of());
 
-        assertThrows(IllegalArgumentException.class, () -> service.handle("   "));
+        assertThrows(IllegalArgumentException.class, () -> service.prepareSearch("   "));
 
-        verifyNoInteractions(embeddingModelSelectionService, ragOrchestrator);
+        verifyNoInteractions(documentSearchScopeService, embeddingModelSelectionService);
     }
 
     @Test
@@ -153,13 +62,64 @@ class RagQueryServiceTest {
         lenient().when(documentSearchScopeService.findAllowedDocumentVersionIds())
                 .thenReturn(Set.of(10L));
 
-        assertThrows(IllegalArgumentException.class, () -> service.handle(null));
-        assertThrows(IllegalArgumentException.class, () -> service.handle("   "));
+        assertThrows(IllegalArgumentException.class, () -> service.prepareSearch(null));
+        assertThrows(IllegalArgumentException.class, () -> service.prepareSearch("   "));
 
-        verifyNoInteractions(
-                documentSearchScopeService,
-                embeddingModelSelectionService,
-                ragOrchestrator);
+        verifyNoInteractions(documentSearchScopeService, embeddingModelSelectionService);
+    }
+
+    @Test
+    void returnsEmptyOptionalWithoutSelectingModelForEmptyScope() {
+        when(documentSearchScopeService.findAllowedDocumentVersionIds()).thenReturn(Set.of());
+
+        Optional<RagSearchPlan> result = service.prepareSearch("질문");
+
+        assertTrue(result.isEmpty());
+        verifyNoInteractions(embeddingModelSelectionService);
+    }
+
+    @Test
+    void returnsPlanWithExactModelSelectionAndScope() {
+        Set<Long> allowedDocumentVersionIds = Set.of(10L, 20L);
+        EmbeddingModelSelection modelSelection = modelSelection();
+        when(documentSearchScopeService.findAllowedDocumentVersionIds())
+                .thenReturn(allowedDocumentVersionIds);
+        when(embeddingModelSelectionService.selectDefaultEmbeddingModel())
+                .thenReturn(modelSelection);
+
+        RagSearchPlan plan = service.prepareSearch("질문").orElseThrow();
+
+        assertEquals(modelSelection.aiModelId(), plan.aiModelId());
+        assertEquals(allowedDocumentVersionIds, plan.allowedDocumentVersionIds());
+        assertEquals(modelSelection.providerName(), plan.providerName());
+        assertEquals(modelSelection.modelName(), plan.modelName());
+    }
+
+    @Test
+    void propagatesDocumentSearchScopeServiceExceptionWithoutSelectingModel() {
+        IllegalStateException expected = new IllegalStateException("scope lookup failed");
+        when(documentSearchScopeService.findAllowedDocumentVersionIds()).thenThrow(expected);
+
+        IllegalStateException actual = assertThrows(
+                IllegalStateException.class,
+                () -> service.prepareSearch("질문"));
+
+        assertSame(expected, actual);
+        verifyNoInteractions(embeddingModelSelectionService);
+    }
+
+    @Test
+    void propagatesEmbeddingModelSelectionServiceException() {
+        IllegalStateException expected = new IllegalStateException("model lookup failed");
+        when(documentSearchScopeService.findAllowedDocumentVersionIds())
+                .thenReturn(Set.of(10L));
+        when(embeddingModelSelectionService.selectDefaultEmbeddingModel()).thenThrow(expected);
+
+        IllegalStateException actual = assertThrows(
+                IllegalStateException.class,
+                () -> service.prepareSearch("질문"));
+
+        assertSame(expected, actual);
     }
 
     private EmbeddingModelSelection modelSelection() {
