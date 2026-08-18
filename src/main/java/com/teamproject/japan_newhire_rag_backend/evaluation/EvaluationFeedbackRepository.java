@@ -9,6 +9,8 @@ public interface EvaluationFeedbackRepository extends JpaRepository<EvaluationFe
 
     List<EvaluationFeedback> findByEvaluationId(Long evaluationId);
 
+    List<EvaluationFeedback> findByEvaluationIdAndIsVisibleToEmployeeTrue(Long evaluationId);
+
     Optional<EvaluationFeedback> findByEvaluationIdAndEvaluationItemIdAndFeedbackType(
             Long evaluationId,
             Long evaluationItemId,

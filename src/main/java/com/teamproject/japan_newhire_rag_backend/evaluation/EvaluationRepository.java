@@ -22,4 +22,9 @@ public interface EvaluationRepository extends JpaRepository<Evaluation, Long> {
     List<Evaluation> findByEvaluationCycleIdAndTargetEmployeeId(
             Long evaluationCycleId,
             Long targetEmployeeId);
+
+    List<Evaluation> findByEvaluationCycleIdAndTargetEmployeeIdAndEvaluationTypeIn(
+            Long evaluationCycleId,
+            Long targetEmployeeId,
+            List<EvaluationType> evaluationTypes);
 }

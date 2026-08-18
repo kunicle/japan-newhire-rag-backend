@@ -33,6 +33,7 @@ public enum EvaluationErrorCode implements ErrorCodeSpec {
     EVALUATION_FEEDBACK_CONFLICT(HttpStatus.CONFLICT, "Evaluation feedback data is conflicting"),
     EVALUATION_NOT_PUBLISHABLE(HttpStatus.CONFLICT, "Evaluation is not publishable"),
     EVALUATION_PUBLISH_CONFLICT(HttpStatus.CONFLICT, "Evaluation publish data is conflicting"),
+    EVALUATION_RESULT_NOT_AVAILABLE(HttpStatus.CONFLICT, "Evaluation result is not available"),
     EVALUATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "Evaluation operation access is denied");
 
     private final HttpStatus status;
