@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.teamproject.japan_newhire_rag_backend.document.entity.Document;
 import com.teamproject.japan_newhire_rag_backend.document.processing.entity.DocumentProcessingJob;
 import com.teamproject.japan_newhire_rag_backend.document.service.DocumentLifecycleService;
 import com.teamproject.japan_newhire_rag_backend.document.storage.DocumentStorageService;
@@ -45,9 +46,15 @@ class DocumentIngestionOrchestrationServiceTest {
     void ingestsStoredDocumentThroughChunkingAndEmbedding() {
         String original = "신입사원은 최초 로그인 후 비밀번호를 변경합니다.";
         byte[] content = original.getBytes(StandardCharsets.UTF_8);
+        Document document = mock(Document.class);
         DocumentVersion documentVersion = mock(DocumentVersion.class);
         DocumentProcessingJob processingJob = mock(DocumentProcessingJob.class);
         DocumentProcessingJob finalJob = mock(DocumentProcessingJob.class);
+        when(document.getDocumentId()).thenReturn(99L);
+        when(documentVersion.getDocument()).thenReturn(document);
+        when(documentVersion.getDocumentVersionId()).thenReturn(88L);
+        when(finalJob.getDocumentProcessingJobId()).thenReturn(77L);
+        when(finalJob.getProcessingStatus()).thenReturn("COMPLETED");
         when(storageService.store("신입사원.txt", content)).thenReturn("stored-uuid.txt");
         when(lifecycleService.createDocumentWithInitialVersion(
                 10L,
@@ -63,7 +70,7 @@ class DocumentIngestionOrchestrationServiceTest {
         when(embeddingService.processEmbeddings(processingJob, documentVersion))
                 .thenReturn(finalJob);
 
-        DocumentProcessingJob result = service.ingest(
+        DocumentIngestionResult result = service.ingest(
                 10L,
                 "신입사원 규정",
                 "최초 로그인 안내",
@@ -74,7 +81,10 @@ class DocumentIngestionOrchestrationServiceTest {
                 50,
                 30L);
 
-        assertThat(result).isSameAs(finalJob);
+        assertThat(result.documentId()).isEqualTo(99L);
+        assertThat(result.documentVersionId()).isEqualTo(88L);
+        assertThat(result.documentProcessingJobId()).isEqualTo(77L);
+        assertThat(result.processingStatus()).isEqualTo("COMPLETED");
         InOrder order = inOrder(
                 validator, storageService, lifecycleService, chunkingService, embeddingService);
         order.verify(validator).validate("신입사원.txt", content);
@@ -197,12 +207,18 @@ class DocumentIngestionOrchestrationServiceTest {
     }
 
     @Test
-    void returnsEmbeddingOrchestrationResultUnchanged() {
+    void resultReflectsFinalJobIdAndStatus() {
         byte[] content = "내용".getBytes(StandardCharsets.UTF_8);
         String text = new String(content, StandardCharsets.UTF_8);
+        Document document = mock(Document.class);
         DocumentVersion documentVersion = mock(DocumentVersion.class);
         DocumentProcessingJob processingJob = mock(DocumentProcessingJob.class);
         DocumentProcessingJob failedJob = mock(DocumentProcessingJob.class);
+        when(document.getDocumentId()).thenReturn(101L);
+        when(documentVersion.getDocument()).thenReturn(document);
+        when(documentVersion.getDocumentVersionId()).thenReturn(202L);
+        when(failedJob.getDocumentProcessingJobId()).thenReturn(303L);
+        when(failedJob.getProcessingStatus()).thenReturn("FAILED");
         when(storageService.store("규정.txt", content)).thenReturn("stored-uuid.txt");
         when(lifecycleService.createDocumentWithInitialVersion(
                 10L, "규정", null, "v1", "규정.txt", "stored-uuid.txt", content.length, 30L))
@@ -212,7 +228,10 @@ class DocumentIngestionOrchestrationServiceTest {
         when(embeddingService.processEmbeddings(processingJob, documentVersion))
                 .thenReturn(failedJob);
 
-        assertThat(ingest("규정.txt", content)).isSameAs(failedJob);
+        DocumentIngestionResult result = ingest("규정.txt", content);
+
+        assertThat(result.documentProcessingJobId()).isEqualTo(303L);
+        assertThat(result.processingStatus()).isEqualTo("FAILED");
     }
 
     @Test
@@ -234,7 +253,7 @@ class DocumentIngestionOrchestrationServiceTest {
                 .getAnnotation(Transactional.class)).isNull();
     }
 
-    private DocumentProcessingJob ingest(String originalFileName, byte[] content) {
+    private DocumentIngestionResult ingest(String originalFileName, byte[] content) {
         return service.ingest(
                 10L,
                 "규정",

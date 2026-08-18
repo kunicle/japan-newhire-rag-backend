@@ -32,7 +32,7 @@ public class DocumentIngestionOrchestrationService {
         this.documentEmbeddingOrchestrationService = documentEmbeddingOrchestrationService;
     }
 
-    public DocumentProcessingJob ingest(
+    public DocumentIngestionResult ingest(
             Long documentCategoryId,
             String documentName,
             String documentDescription,
@@ -72,6 +72,12 @@ public class DocumentIngestionOrchestrationService {
                 maxChunkSize,
                 overlapSize,
                 createdByAppUserId);
-        return documentEmbeddingOrchestrationService.processEmbeddings(job, documentVersion);
+        DocumentProcessingJob finalJob =
+                documentEmbeddingOrchestrationService.processEmbeddings(job, documentVersion);
+        return new DocumentIngestionResult(
+                documentVersion.getDocument().getDocumentId(),
+                documentVersion.getDocumentVersionId(),
+                finalJob.getDocumentProcessingJobId(),
+                finalJob.getProcessingStatus());
     }
 }
