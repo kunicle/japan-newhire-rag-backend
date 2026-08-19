@@ -97,6 +97,10 @@ public class SecurityConfig {
                                 HttpMethod.PUT,
                                 "/api/documents/*/versions/*/access-rule")
                         .hasAnyRole("HR_MANAGER", "SYSTEM_ADMIN")
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/hr/document-processing-jobs")
+                        .hasRole("HR_MANAGER")
                         .anyRequest()
                         .hasAnyRole(APPLICATION_ROLES))
                 .addFilterBefore(
