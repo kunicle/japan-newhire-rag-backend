@@ -24,3 +24,26 @@ CREATE TABLE audit_log (
     INDEX idx_audit_log_target (target_type, target_id, created_at),
     INDEX idx_audit_log_request (request_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE notification (
+    notification_id BIGINT NOT NULL AUTO_INCREMENT,
+    app_user_id BIGINT NOT NULL,
+    notification_type VARCHAR(50) NOT NULL,
+    notification_title VARCHAR(200) NOT NULL,
+    notification_content TEXT NOT NULL,
+    reference_type VARCHAR(50) NULL,
+    reference_id BIGINT NULL,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    read_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT pk_notification PRIMARY KEY (notification_id),
+    CONSTRAINT fk_notification_recipient
+        FOREIGN KEY (app_user_id) REFERENCES app_user (app_user_id)
+        ON DELETE RESTRICT,
+    CONSTRAINT ck_notification_read_state
+        CHECK ((is_read = FALSE AND read_at IS NULL) OR (is_read = TRUE AND read_at IS NOT NULL)),
+    INDEX idx_notification_app_user_created
+        (app_user_id, created_at, notification_id),
+    INDEX idx_notification_app_user_read_created
+        (app_user_id, is_read, created_at, notification_id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
