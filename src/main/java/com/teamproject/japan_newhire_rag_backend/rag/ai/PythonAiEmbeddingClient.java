@@ -8,19 +8,25 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class PythonAiEmbeddingClient implements AiEmbeddingClient {
 
     private final RestClient restClient;
+    private final AiHttpRetryExecutor retryExecutor;
 
     public PythonAiEmbeddingClient(RestClient restClient) {
+        this(restClient, new AiHttpRetryExecutor());
+    }
+
+    PythonAiEmbeddingClient(RestClient restClient, AiHttpRetryExecutor retryExecutor) {
         this.restClient = restClient;
+        this.retryExecutor = retryExecutor;
     }
 
     @Override
     public EmbeddingResult embed(EmbeddingRequest request) {
-        EmbedHttpResponse response = restClient.post()
+        EmbedHttpResponse response = retryExecutor.execute(() -> restClient.post()
                 .uri("/embed")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(EmbedHttpRequest.from(request))
                 .retrieve()
-                .body(EmbedHttpResponse.class);
+                .body(EmbedHttpResponse.class));
 
         if (response == null) {
             throw new IllegalStateException("Python AI embedding 응답이 없습니다.");

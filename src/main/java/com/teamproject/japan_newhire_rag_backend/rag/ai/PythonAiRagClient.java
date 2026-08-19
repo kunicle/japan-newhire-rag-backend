@@ -10,19 +10,28 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class PythonAiRagClient implements AiRagClient {
 
     private final RestClient restClient;
+    private final AiHttpRetryExecutor retryExecutor;
 
     public PythonAiRagClient(RestClient.Builder restClientBuilder, String baseUrl) {
+        this(restClientBuilder, baseUrl, new AiHttpRetryExecutor());
+    }
+
+    PythonAiRagClient(
+            RestClient.Builder restClientBuilder,
+            String baseUrl,
+            AiHttpRetryExecutor retryExecutor) {
         this.restClient = restClientBuilder.baseUrl(baseUrl).build();
+        this.retryExecutor = retryExecutor;
     }
 
     @Override
     public AiRagSearchResponse search(AiRagSearchRequest request) {
-        SearchHttpResponse response = restClient.post()
+        SearchHttpResponse response = retryExecutor.execute(() -> restClient.post()
                 .uri("/rag/search")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(SearchHttpRequest.from(request))
                 .retrieve()
-                .body(SearchHttpResponse.class);
+                .body(SearchHttpResponse.class));
 
         if (response == null) {
             throw new IllegalStateException("Python AI 검색 응답이 없습니다.");
@@ -32,12 +41,12 @@ public class PythonAiRagClient implements AiRagClient {
 
     @Override
     public AiRagGenerateResponse generate(AiRagGenerateRequest request) {
-        GenerateHttpResponse response = restClient.post()
+        GenerateHttpResponse response = retryExecutor.execute(() -> restClient.post()
                 .uri("/rag/generate")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(GenerateHttpRequest.from(request))
                 .retrieve()
-                .body(GenerateHttpResponse.class);
+                .body(GenerateHttpResponse.class));
 
         if (response == null) {
             throw new IllegalStateException("Python AI 생성 응답이 없습니다.");
