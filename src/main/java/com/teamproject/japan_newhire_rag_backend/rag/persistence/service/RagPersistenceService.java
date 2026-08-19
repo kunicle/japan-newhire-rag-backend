@@ -112,7 +112,7 @@ public class RagPersistenceService {
         return ragSearch;
     }
 
-    public void persistAnswer(
+    public List<RagCitationSnapshot> persistAnswer(
             RagSearch ragSearch,
             String answerText,
             List<Long> validCitedChunkIds) {
@@ -120,7 +120,7 @@ public class RagPersistenceService {
 
         if (validCitedChunkIds.isEmpty()) {
             ragCitationRepository.saveAll(List.of());
-            return;
+            return List.of();
         }
 
         Map<Long, DocumentChunk> chunksById = documentChunkRepository
@@ -131,6 +131,7 @@ public class RagPersistenceService {
                         Function.identity()));
 
         List<RagCitation> citations = new ArrayList<>();
+        List<RagCitationSnapshot> citationSnapshots = new ArrayList<>();
         int position = 1;
         for (Long chunkId : validCitedChunkIds) {
             DocumentChunk documentChunk = chunksById.get(chunkId);
@@ -138,16 +139,27 @@ public class RagPersistenceService {
                 throw new IllegalStateException("검증된 인용 chunk를 찾을 수 없습니다: " + chunkId);
             }
             DocumentVersion documentVersion = documentChunk.getDocumentVersion();
+            String documentName = documentVersion.getDocument().getDocumentName();
+            String versionName = documentVersion.getVersionName();
+            String articleNumber = documentChunk.getArticleNumber();
+            String citedText = documentChunk.getChunkContent();
             citations.add(RagCitation.create(
                     ragAnswer,
                     documentChunk,
                     position,
-                    documentVersion.getDocument().getDocumentName(),
-                    documentVersion.getVersionName(),
-                    documentChunk.getArticleNumber(),
-                    documentChunk.getChunkContent()));
+                    documentName,
+                    versionName,
+                    articleNumber,
+                    citedText));
+            citationSnapshots.add(new RagCitationSnapshot(
+                    chunkId,
+                    documentName,
+                    versionName,
+                    articleNumber,
+                    citedText));
             position++;
         }
         ragCitationRepository.saveAll(citations);
+        return citationSnapshots;
     }
 }

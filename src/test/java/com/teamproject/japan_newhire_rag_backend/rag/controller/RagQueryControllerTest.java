@@ -42,6 +42,7 @@ import com.teamproject.japan_newhire_rag_backend.domain.auth.service.internal.Jw
 import com.teamproject.japan_newhire_rag_backend.domain.auth.token.AccessTokenService;
 import com.teamproject.japan_newhire_rag_backend.rag.application.RagQueryExecutionService;
 import com.teamproject.japan_newhire_rag_backend.rag.application.RagQueryResult;
+import com.teamproject.japan_newhire_rag_backend.rag.persistence.service.RagCitationSnapshot;
 
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -80,7 +81,15 @@ class RagQueryControllerTest {
     void employeeCanExecuteRagQuery() throws Exception {
         authenticateAs(RoleType.EMPLOYEE);
         when(ragQueryExecutionService.execute("질문"))
-                .thenReturn(new RagQueryResult(true, "답변", List.of(101L, 102L)));
+                .thenReturn(new RagQueryResult(
+                        true,
+                        "답변",
+                        List.of(101L, 102L),
+                        List.of(
+                                new RagCitationSnapshot(
+                                        101L, "취업규칙", "v1", "제5조", "첫 번째 근거 문장"),
+                                new RagCitationSnapshot(
+                                        102L, "휴가규정", "v1", null, "두 번째 근거 문장"))));
 
         mockMvc.perform(authenticatedQuestionRequest("{\"question\":\"질문\"}"))
                 .andExpect(status().isOk())
@@ -89,7 +98,15 @@ class RagQueryControllerTest {
                 .andExpect(jsonPath("$.validCitedChunkIds").isArray())
                 .andExpect(jsonPath("$.validCitedChunkIds.length()").value(2))
                 .andExpect(jsonPath("$.validCitedChunkIds[0]").value(101))
-                .andExpect(jsonPath("$.validCitedChunkIds[1]").value(102));
+                .andExpect(jsonPath("$.validCitedChunkIds[1]").value(102))
+                .andExpect(jsonPath("$.citations").isArray())
+                .andExpect(jsonPath("$.citations.length()").value(2))
+                .andExpect(jsonPath("$.citations[0].documentChunkId").value(101))
+                .andExpect(jsonPath("$.citations[0].documentName").value("취업규칙"))
+                .andExpect(jsonPath("$.citations[0].versionName").value("v1"))
+                .andExpect(jsonPath("$.citations[0].articleNumber").value("제5조"))
+                .andExpect(jsonPath("$.citations[0].citedText").value("첫 번째 근거 문장"))
+                .andExpect(jsonPath("$.citations[1].articleNumber").value(nullValue()));
 
         verify(ragQueryExecutionService).execute("질문");
     }
@@ -98,7 +115,7 @@ class RagQueryControllerTest {
     void hrManagerCanExecuteRagQuery() throws Exception {
         authenticateAs(RoleType.HR_MANAGER);
         when(ragQueryExecutionService.execute("질문"))
-                .thenReturn(new RagQueryResult(true, "답변", List.of()));
+                .thenReturn(new RagQueryResult(true, "답변", List.of(), List.of()));
 
         mockMvc.perform(authenticatedQuestionRequest("{\"question\":\"질문\"}"))
                 .andExpect(status().isOk());
@@ -110,14 +127,16 @@ class RagQueryControllerTest {
     void insufficientEvidenceIsReturnedAsSuccessfulBusinessResult() throws Exception {
         authenticateAs(RoleType.EMPLOYEE);
         when(ragQueryExecutionService.execute("질문"))
-                .thenReturn(new RagQueryResult(false, null, List.of()));
+                .thenReturn(new RagQueryResult(false, null, List.of(), List.of()));
 
         mockMvc.perform(authenticatedQuestionRequest("{\"question\":\"질문\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hasSufficientEvidence").value(false))
                 .andExpect(jsonPath("$.answer").value(nullValue()))
                 .andExpect(jsonPath("$.validCitedChunkIds").isArray())
-                .andExpect(jsonPath("$.validCitedChunkIds").isEmpty());
+                .andExpect(jsonPath("$.validCitedChunkIds").isEmpty())
+                .andExpect(jsonPath("$.citations").isArray())
+                .andExpect(jsonPath("$.citations").isEmpty());
     }
 
     @Test

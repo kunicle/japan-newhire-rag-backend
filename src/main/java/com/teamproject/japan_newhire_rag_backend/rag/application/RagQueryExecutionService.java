@@ -13,6 +13,7 @@ import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagOrchestrat
 import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagSearchOrchestrationResult;
 import com.teamproject.japan_newhire_rag_backend.rag.persistence.entity.RagQuestion;
 import com.teamproject.japan_newhire_rag_backend.rag.persistence.entity.RagSearch;
+import com.teamproject.japan_newhire_rag_backend.rag.persistence.service.RagCitationSnapshot;
 import com.teamproject.japan_newhire_rag_backend.rag.persistence.service.RagPersistenceService;
 import com.teamproject.japan_newhire_rag_backend.rag.persistence.service.RagSearchPersistenceItem;
 
@@ -59,7 +60,7 @@ public class RagQueryExecutionService {
                     ragQuestion,
                     FAILURE_TYPE_NO_ACCESSIBLE_DOCUMENT,
                     FAILURE_REASON_NO_ACCESSIBLE_DOCUMENT);
-            return new RagQueryResult(false, null, List.of());
+            return new RagQueryResult(false, null, List.of(), List.of());
         }
 
         RagSearchPlan plan = planOptional.get();
@@ -93,7 +94,7 @@ public class RagQueryExecutionService {
                     ragQuestion,
                     FAILURE_TYPE_LOW_SIMILARITY,
                     FAILURE_REASON_LOW_SIMILARITY);
-            return new RagQueryResult(false, null, List.of());
+            return new RagQueryResult(false, null, List.of(), List.of());
         }
 
         RagGenerationOrchestrationResult generationResult;
@@ -106,11 +107,14 @@ public class RagQueryExecutionService {
                     FAILURE_REASON_API_ERROR);
             throw exception.getOriginalFailure();
         }
-        ragPersistenceService.persistAnswer(
+        List<RagCitationSnapshot> citations = ragPersistenceService.persistAnswer(
                 ragSearch, generationResult.answer(), generationResult.validCitedChunkIds());
         ragPersistenceService.markQuestionAnswered(ragQuestion);
 
         return new RagQueryResult(
-                true, generationResult.answer(), generationResult.validCitedChunkIds());
+                true,
+                generationResult.answer(),
+                generationResult.validCitedChunkIds(),
+                citations);
     }
 }

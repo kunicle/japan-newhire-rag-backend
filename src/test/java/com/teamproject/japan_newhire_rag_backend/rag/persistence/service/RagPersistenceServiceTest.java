@@ -150,7 +150,8 @@ class RagPersistenceServiceTest {
                 List.of(101L, 102L)))
                 .thenReturn(List.of(secondChunk, firstChunk));
 
-        service.persistAnswer(ragSearch, "답변", List.of(101L, 102L));
+        List<RagCitationSnapshot> snapshots =
+                service.persistAnswer(ragSearch, "답변", List.of(101L, 102L));
 
         RagAnswer savedAnswer = captureAnswer();
         assertSame(ragSearch, savedAnswer.getRagSearch());
@@ -163,6 +164,10 @@ class RagPersistenceServiceTest {
         assertCitation(
                 citations.get(1), savedAnswer, secondChunk, 2,
                 "휴가규정", "v2", "제2조", "두 번째 인용문");
+        assertEquals(List.of(
+                new RagCitationSnapshot(101L, "취업규칙", "v1", "제1조", "첫 번째 인용문"),
+                new RagCitationSnapshot(102L, "휴가규정", "v2", "제2조", "두 번째 인용문")),
+                snapshots);
         verify(documentChunkRepository)
                 .findAllWithDocumentAndVersionByDocumentChunkIdIn(List.of(101L, 102L));
     }
@@ -173,12 +178,14 @@ class RagPersistenceServiceTest {
         when(ragAnswerRepository.save(any(RagAnswer.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.persistAnswer(ragSearch, "답변", List.of());
+        List<RagCitationSnapshot> snapshots =
+                service.persistAnswer(ragSearch, "답변", List.of());
 
         RagAnswer savedAnswer = captureAnswer();
         assertSame(ragSearch, savedAnswer.getRagSearch());
         assertEquals("답변", savedAnswer.getAnswerText());
         assertEquals(List.of(), captureCitations());
+        assertEquals(List.of(), snapshots);
         verify(documentChunkRepository, never())
                 .findAllWithDocumentAndVersionByDocumentChunkIdIn(any());
     }
@@ -194,7 +201,8 @@ class RagPersistenceServiceTest {
                 List.of(101L, 101L)))
                 .thenReturn(List.of(chunk));
 
-        service.persistAnswer(ragSearch, "답변", List.of(101L, 101L));
+        List<RagCitationSnapshot> snapshots =
+                service.persistAnswer(ragSearch, "답변", List.of(101L, 101L));
 
         RagAnswer savedAnswer = captureAnswer();
         List<RagCitation> citations = captureCitations();
@@ -205,6 +213,10 @@ class RagPersistenceServiceTest {
         assertCitation(
                 citations.get(1), savedAnswer, chunk, 2,
                 "취업규칙", "v1", "제1조", "중복 인용문");
+        assertEquals(List.of(
+                new RagCitationSnapshot(101L, "취업규칙", "v1", "제1조", "중복 인용문"),
+                new RagCitationSnapshot(101L, "취업규칙", "v1", "제1조", "중복 인용문")),
+                snapshots);
         verify(documentChunkRepository)
                 .findAllWithDocumentAndVersionByDocumentChunkIdIn(List.of(101L, 101L));
     }
@@ -220,11 +232,13 @@ class RagPersistenceServiceTest {
                 List.of(101L)))
                 .thenReturn(List.of(chunk));
 
-        service.persistAnswer(ragSearch, "답변", List.of(101L));
+        List<RagCitationSnapshot> snapshots =
+                service.persistAnswer(ragSearch, "답변", List.of(101L));
 
         RagCitation citation = captureCitations().get(0);
         assertEquals(null, citation.getArticleNumberSnapshot());
         assertEquals("인용문", citation.getCitedText());
+        assertEquals(null, snapshots.get(0).articleNumber());
     }
 
     @Test

@@ -34,6 +34,7 @@ import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagOrchestrat
 import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagSearchOrchestrationResult;
 import com.teamproject.japan_newhire_rag_backend.rag.persistence.entity.RagQuestion;
 import com.teamproject.japan_newhire_rag_backend.rag.persistence.entity.RagSearch;
+import com.teamproject.japan_newhire_rag_backend.rag.persistence.service.RagCitationSnapshot;
 import com.teamproject.japan_newhire_rag_backend.rag.persistence.service.RagPersistenceService;
 import com.teamproject.japan_newhire_rag_backend.rag.persistence.service.RagSearchPersistenceItem;
 
@@ -98,7 +99,7 @@ class RagQueryExecutionServiceTest {
 
         RagQueryResult result = service.execute(QUESTION);
 
-        assertEquals(new RagQueryResult(false, null, List.of()), result);
+        assertEquals(new RagQueryResult(false, null, List.of(), List.of()), result);
         InOrder order = inOrder(ragPersistenceService);
         order.verify(ragPersistenceService).persistQuestion(QUESTION, 1001L);
         order.verify(ragPersistenceService).markQuestionRejected(
@@ -231,7 +232,7 @@ class RagQueryExecutionServiceTest {
         ArgumentCaptor<List<RagSearchPersistenceItem>> captor = persistenceItemsCaptor();
         verify(ragPersistenceService).persistSearch(same(ragQuestion), eq(10L), captor.capture());
         assertEquals(List.of(), captor.getValue());
-        assertEquals(new RagQueryResult(false, null, List.of()), result);
+        assertEquals(new RagQueryResult(false, null, List.of(), List.of()), result);
         InOrder order = inOrder(ragPersistenceService, ragOrchestrator);
         order.verify(ragPersistenceService).markQuestionProcessing(ragQuestion);
         order.verify(ragOrchestrator).search(
@@ -270,7 +271,7 @@ class RagQueryExecutionServiceTest {
         assertEquals(List.of(
                 new RagSearchPersistenceItem(201L, 101L, 0.61),
                 new RagSearchPersistenceItem(202L, 102L, 0.52)), captor.getValue());
-        assertEquals(new RagQueryResult(false, null, List.of()), result);
+        assertEquals(new RagQueryResult(false, null, List.of(), List.of()), result);
         InOrder order = inOrder(ragPersistenceService, ragOrchestrator);
         order.verify(ragPersistenceService).markQuestionProcessing(ragQuestion);
         order.verify(ragOrchestrator).search(
@@ -373,6 +374,10 @@ class RagQueryExecutionServiceTest {
         when(ragPersistenceService.persistSearch(same(ragQuestion), eq(10L), anyList()))
                 .thenReturn(ragSearch);
         when(ragOrchestrator.generate(QUESTION, searchResult)).thenReturn(generationResult);
+        List<RagCitationSnapshot> citations = List.of(
+                new RagCitationSnapshot(201L, "취업규칙", "v1", "제1조", "근거 문장"));
+        when(ragPersistenceService.persistAnswer(ragSearch, "답변", List.of(201L)))
+                .thenReturn(citations);
 
         RagQueryResult result = service.execute(QUESTION);
 
@@ -395,7 +400,12 @@ class RagQueryExecutionServiceTest {
                 same(ragSearch), eq("답변"), eq(List.of(201L)));
         order.verify(ragPersistenceService).markQuestionAnswered(ragQuestion);
         assertEquals(List.of(new RagSearchPersistenceItem(201L, 101L, 0.81)), captor.getValue());
-        assertEquals(new RagQueryResult(true, "답변", List.of(201L)), result);
+        assertEquals(new RagQueryResult(true, "답변", List.of(201L), citations), result);
+        assertEquals(
+                result.validCitedChunkIds(),
+                result.citations().stream()
+                        .map(RagCitationSnapshot::documentChunkId)
+                        .toList());
     }
 
     private void stubQuestionPersistence(RagQuestion ragQuestion) {
