@@ -178,6 +178,44 @@ class RagQueryControllerTest {
     }
 
     @Test
+    void questionOfLengthOneReturnsValidationError() throws Exception {
+        authenticateAs(RoleType.EMPLOYEE);
+
+        mockMvc.perform(authenticatedQuestionRequest("{\"question\":\"가\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        verifyNoInteractions(ragQueryExecutionService);
+    }
+
+    @Test
+    void questionOfMaxLengthIsAccepted() throws Exception {
+        authenticateAs(RoleType.EMPLOYEE);
+        String question = "가".repeat(500);
+        when(ragQueryExecutionService.execute(question))
+                .thenReturn(new RagQueryResult(true, "답변", List.of(), List.of()));
+
+        mockMvc.perform(authenticatedQuestionRequest(
+                        "{\"question\":\"" + question + "\"}"))
+                .andExpect(status().isOk());
+
+        verify(ragQueryExecutionService).execute(question);
+    }
+
+    @Test
+    void questionExceedingMaxLengthReturnsValidationError() throws Exception {
+        authenticateAs(RoleType.EMPLOYEE);
+        String question = "가".repeat(501);
+
+        mockMvc.perform(authenticatedQuestionRequest(
+                        "{\"question\":\"" + question + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        verifyNoInteractions(ragQueryExecutionService);
+    }
+
+    @Test
     void unauthenticatedRequestIsUnauthorized() throws Exception {
         mockMvc.perform(questionRequest("{\"question\":\"질문\"}"))
                 .andExpect(status().isUnauthorized());
