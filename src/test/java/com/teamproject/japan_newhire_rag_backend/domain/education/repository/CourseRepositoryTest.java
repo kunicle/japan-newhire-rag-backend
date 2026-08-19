@@ -1,24 +1,24 @@
 package com.teamproject.japan_newhire_rag_backend.domain.education.repository;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.lang.reflect.Constructor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.boot.persistence.autoconfigure.EntityScan;
 
 import com.teamproject.japan_newhire_rag_backend.common.config.JpaAuditingConfig;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.entity.AppUser;
@@ -170,6 +170,31 @@ class CourseRepositoryTest {
     }
 
     @Test
+    void findsCourseModulesOrderedByModuleOrderIncludingInactive() {
+        Course course = courseRepository.saveAndFlush(createCourse());
+
+        CourseModule third = createModule(course, 3);
+        CourseModule first = createModule(course, 1);
+        CourseModule second = createModule(course, 2);
+        set(second, "active", false);
+
+        courseModuleRepository.saveAllAndFlush(
+                List.of(third, first, second));
+        entityManager.clear();
+
+        List<CourseModule> found = courseModuleRepository
+                .findAllByCourse_CourseIdOrderByModuleOrderAsc(
+                        course.getCourseId());
+
+        assertThat(found)
+                .extracting(CourseModule::getModuleOrder)
+                .containsExactly(1, 2, 3);
+        assertThat(found)
+                .extracting(CourseModule::isActive)
+                .containsExactly(true, false, true);
+    }
+
+    @Test
     void savesEnrollmentProgressAndAllEducationRepositories() {
         Course course = courseRepository.saveAndFlush(createCourse());
         CourseModule module = courseModuleRepository.saveAndFlush(createModule(course));
@@ -243,11 +268,15 @@ class CourseRepositoryTest {
     }
 
     private CourseModule createModule(Course course) {
+        return createModule(course, 1);
+    }
+
+    private CourseModule createModule(Course course, int moduleOrder) {
         CourseModule module = newEntity(CourseModule.class);
         set(module, "course", course);
-        set(module, "moduleTitle", "Company rules");
-        set(module, "moduleContent", "Read the company rules.");
-        set(module, "moduleOrder", 1);
+        set(module, "moduleTitle", "Module " + moduleOrder);
+        set(module, "moduleContent", "Module content " + moduleOrder);
+        set(module, "moduleOrder", moduleOrder);
         return module;
     }
 

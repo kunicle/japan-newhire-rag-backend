@@ -1,24 +1,23 @@
 package com.teamproject.japan_newhire_rag_backend.domain.education.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import static org.mockito.ArgumentMatchers.any;
 import org.mockito.Mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -39,6 +38,7 @@ import com.teamproject.japan_newhire_rag_backend.domain.education.controller.dto
 import com.teamproject.japan_newhire_rag_backend.domain.education.controller.dto.CourseUpdateRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.education.entity.Course;
 import com.teamproject.japan_newhire_rag_backend.domain.education.enums.CoursePublicationStatus;
+import com.teamproject.japan_newhire_rag_backend.domain.education.repository.CourseEnrollmentRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.education.repository.CourseModuleRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.education.repository.CourseRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmployeeType;
@@ -55,6 +55,9 @@ class CourseServiceTest {
     @Mock
     private CurrentUserProvider currentUserProvider;
 
+    @Mock
+    private CourseEnrollmentRepository courseEnrollmentRepository;
+
     private CourseService courseService;
 
     @BeforeEach
@@ -62,7 +65,41 @@ class CourseServiceTest {
         courseService = new CourseService(
                 courseRepository,
                 courseModuleRepository,
+                courseEnrollmentRepository,
                 currentUserProvider);
+    }
+
+    @Test
+    void draftCourseCannotBecomePrivate() {
+        Course course = courseWithPublicationStatus(
+                10L,
+                CoursePublicationStatus.DRAFT);
+
+        when(currentUserProvider.getCurrentUser())
+                .thenReturn(currentUser(RoleType.HR_MANAGER));
+        when(courseRepository.findByCourseIdAndDeletedAtIsNull(10L))
+                .thenReturn(Optional.of(course));
+
+        assertThatThrownBy(() -> courseService.changePublicationStatus(
+                10L,
+                new CoursePublicationUpdateRequest(
+                        CoursePublicationStatus.PRIVATE)))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> {
+                                assertThat(exception.getErrorCode())
+                                        .isEqualTo(ErrorCode.CONFLICT);
+                                assertThat(exception.getMessage())
+                                        .contains("DRAFT")
+                                        .contains("PRIVATE");
+                        });
+
+        assertThat(course.getPublicationStatus())
+                .isEqualTo(CoursePublicationStatus.DRAFT);
+
+        verifyNoInteractions(
+                courseModuleRepository,
+                courseEnrollmentRepository);
     }
 
     @Test
@@ -352,31 +389,109 @@ class CourseServiceTest {
     }
 
     @Test
-    void courseCanBecomePrivateWithoutModuleCheck() {
-        when(currentUserProvider.getCurrentUser()).thenReturn(currentUser(RoleType.HR_MANAGER));
+    void publicCourseCanBecomePrivateWithoutModuleCheck() {
+        Course course = courseWithPublicationStatus(
+                10L,
+                CoursePublicationStatus.PUBLIC);
+
+        when(currentUserProvider.getCurrentUser())
+                .thenReturn(currentUser(RoleType.HR_MANAGER));
         when(courseRepository.findByCourseIdAndDeletedAtIsNull(10L))
-                .thenReturn(Optional.of(course(10L, LocalDateTime.now())));
+                .thenReturn(Optional.of(course));
 
         CourseResponse response = courseService.changePublicationStatus(
                 10L,
-                new CoursePublicationUpdateRequest(CoursePublicationStatus.PRIVATE));
+                new CoursePublicationUpdateRequest(
+                        CoursePublicationStatus.PRIVATE));
 
-        assertThat(response.publicationStatus()).isEqualTo(CoursePublicationStatus.PRIVATE);
-        verifyNoInteractions(courseModuleRepository);
+        assertThat(response.publicationStatus())
+                .isEqualTo(CoursePublicationStatus.PRIVATE);
+
+        verifyNoInteractions(
+                courseModuleRepository,
+                courseEnrollmentRepository);
     }
 
     @Test
-    void requestingSamePublicationStatusIsIdempotent() {
-        when(currentUserProvider.getCurrentUser()).thenReturn(currentUser(RoleType.HR_MANAGER));
+    void publicCourseWithOperationHistoryCannotReturnToDraft() {
+        Course course = courseWithPublicationStatus(
+                10L,
+                CoursePublicationStatus.PUBLIC);
+
+        when(currentUserProvider.getCurrentUser())
+                .thenReturn(currentUser(RoleType.HR_MANAGER));
         when(courseRepository.findByCourseIdAndDeletedAtIsNull(10L))
-                .thenReturn(Optional.of(course(10L, LocalDateTime.now())));
+                .thenReturn(Optional.of(course));
+        when(courseEnrollmentRepository.existsByCourse_CourseId(10L))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> courseService.changePublicationStatus(
+                10L,
+                new CoursePublicationUpdateRequest(
+                        CoursePublicationStatus.DRAFT)))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> {
+                                assertThat(exception.getErrorCode())
+                                        .isEqualTo(ErrorCode.CONFLICT);
+                                assertThat(exception.getMessage())
+                                        .isEqualTo(
+                                                "A course with operation history "
+                                                        + "cannot return to DRAFT");
+                        });
+
+        assertThat(course.getPublicationStatus())
+                .isEqualTo(CoursePublicationStatus.PUBLIC);
+    }
+
+    @Test
+    void privateCourseWithOperationHistoryCannotReturnToDraft() {
+        Course course = courseWithPublicationStatus(
+                10L,
+                CoursePublicationStatus.PRIVATE);
+
+        when(currentUserProvider.getCurrentUser())
+                .thenReturn(currentUser(RoleType.HR_MANAGER));
+        when(courseRepository.findByCourseIdAndDeletedAtIsNull(10L))
+                .thenReturn(Optional.of(course));
+        when(courseEnrollmentRepository.existsByCourse_CourseId(10L))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> courseService.changePublicationStatus(
+                10L,
+                new CoursePublicationUpdateRequest(
+                        CoursePublicationStatus.DRAFT)))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception ->
+                                assertThat(exception.getErrorCode())
+                                        .isEqualTo(ErrorCode.CONFLICT));
+
+        assertThat(course.getPublicationStatus())
+                .isEqualTo(CoursePublicationStatus.PRIVATE);
+    }
+
+    @Test
+    void publicCourseWithoutOperationHistoryCanReturnToDraft() {
+        Course course = courseWithPublicationStatus(
+                10L,
+                CoursePublicationStatus.PUBLIC);
+
+        when(currentUserProvider.getCurrentUser())
+                .thenReturn(currentUser(RoleType.HR_MANAGER));
+        when(courseRepository.findByCourseIdAndDeletedAtIsNull(10L))
+                .thenReturn(Optional.of(course));
+        when(courseEnrollmentRepository.existsByCourse_CourseId(10L))
+                .thenReturn(false);
 
         CourseResponse response = courseService.changePublicationStatus(
                 10L,
-                new CoursePublicationUpdateRequest(CoursePublicationStatus.DRAFT));
+                new CoursePublicationUpdateRequest(
+                        CoursePublicationStatus.DRAFT));
 
-        assertThat(response.publicationStatus()).isEqualTo(CoursePublicationStatus.DRAFT);
-        verifyNoInteractions(courseModuleRepository);
+        assertThat(response.publicationStatus())
+                .isEqualTo(CoursePublicationStatus.DRAFT);
+
     }
 
     @Test
@@ -389,7 +504,9 @@ class CourseServiceTest {
                 new CoursePublicationUpdateRequest(CoursePublicationStatus.PUBLIC)))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND));
-        verifyNoInteractions(courseModuleRepository);
+        verifyNoInteractions(
+                courseModuleRepository,
+                courseEnrollmentRepository);
     }
 
     @Test
@@ -470,6 +587,18 @@ class CourseServiceTest {
         ReflectionTestUtils.setField(course, "createdAt", createdAt);
         ReflectionTestUtils.setField(course, "updatedAt", createdAt);
         return course;
+    }
+
+    private Course courseWithPublicationStatus(
+        Long courseId,
+        CoursePublicationStatus publicationStatus
+    ) {
+        Course course = course(courseId, LocalDateTime.now());
+        ReflectionTestUtils.setField(
+            course,
+            "publicationStatus",
+            publicationStatus);
+    return course;
     }
 
     private CourseCreateRequest request(LocalDate startDate, LocalDate endDate) {

@@ -1,7 +1,10 @@
 package com.teamproject.japan_newhire_rag_backend.domain.education.controller;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,6 +29,11 @@ public class CourseModuleController {
 
     public CourseModuleController(CourseModuleService courseModuleService) {
         this.courseModuleService = courseModuleService;
+    }
+
+    @GetMapping("/api/hr/courses/{courseId}/modules")
+    public List<CourseModuleResponse> getModules(@PathVariable String courseId) {
+        return courseModuleService.getModules(parseId(courseId, "Course"));
     }
 
     @PostMapping("/api/hr/courses/{courseId}/modules")

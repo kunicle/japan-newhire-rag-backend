@@ -1,21 +1,16 @@
 package com.teamproject.japan_newhire_rag_backend.domain.education.controller;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import java.time.LocalDateTime;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,6 +20,12 @@ import org.springframework.security.authentication.AuthenticationCredentialsNotF
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
@@ -44,7 +45,6 @@ import tools.jackson.databind.json.JsonMapper;
 @SpringJUnitConfig(CourseModuleControllerTest.TestConfiguration.class)
 @WebAppConfiguration
 class CourseModuleControllerTest {
-
     @Autowired
     private WebApplicationContext applicationContext;
 
@@ -58,6 +58,50 @@ class CourseModuleControllerTest {
         reset(courseModuleService);
         mockMvc = MockMvcBuilders.webAppContextSetup(applicationContext).build();
     }
+
+        @Test
+        void validModuleListReturnsModulesInOrder() throws Exception {
+                CourseModuleResponse first = moduleResponse(100L, 1, true);
+                CourseModuleResponse second = moduleResponse(101L, 2, false);
+                CourseModuleResponse third = moduleResponse(102L, 3, true);
+
+                when(courseModuleService.getModules(10L))
+                        .thenReturn(List.of(first, second, third));
+
+                mockMvc.perform(get("/api/hr/courses/10/modules"))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.length()").value(3))
+                        .andExpect(jsonPath("$[0].courseModuleId").value(100))
+                        .andExpect(jsonPath("$[0].moduleOrder").value(1))
+                        .andExpect(jsonPath("$[1].courseModuleId").value(101))
+                        .andExpect(jsonPath("$[1].moduleOrder").value(2))
+                        .andExpect(jsonPath("$[1].active").value(false))
+                        .andExpect(jsonPath("$[2].courseModuleId").value(102))
+                        .andExpect(jsonPath("$[2].moduleOrder").value(3));
+
+                verify(courseModuleService).getModules(10L);
+        }
+
+        @Test
+        void invalidCourseIdForModuleListReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/hr/courses/not-a-number/modules"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+        verify(courseModuleService, never()).getModules(any());
+        }
+
+        @Test
+        void missingCourseForModuleListReturnsNotFound() throws Exception {
+        when(courseModuleService.getModules(10L))
+                .thenThrow(new BusinessException(
+                        ErrorCode.RESOURCE_NOT_FOUND,
+                        "Course not found"));
+
+        mockMvc.perform(get("/api/hr/courses/10/modules"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+        }
 
     @Test
     void validCreateReturnsCreatedModuleResponse() throws Exception {
@@ -325,6 +369,24 @@ class CourseModuleControllerTest {
                 active,
                 LocalDateTime.of(2026, 8, 12, 10, 0),
                 LocalDateTime.of(2026, 8, 12, 10, 0));
+    }
+
+    private CourseModuleResponse moduleResponse(
+        Long courseModuleId,
+        int moduleOrder,
+        boolean active
+    ) {
+        return new CourseModuleResponse(
+                courseModuleId,
+                10L,
+                "Module " + moduleOrder,
+                "Module content " + moduleOrder,
+                null,
+                moduleOrder,
+                true,
+                active,
+                LocalDateTime.of(2026, 8, 18, 10, 0),
+                LocalDateTime.of(2026, 8, 18, 10, 0));
     }
 
     @Configuration
