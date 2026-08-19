@@ -3,6 +3,7 @@ package com.teamproject.japan_newhire_rag_backend.rag.config;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.mock;
 
 import java.util.Map;
 
@@ -13,6 +14,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClient;
 
 import com.teamproject.japan_newhire_rag_backend.document.access.service.DocumentSearchScopeService;
+import com.teamproject.japan_newhire_rag_backend.document.chunk.repository.DocumentChunkRepository;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.AiEmbeddingClient;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagClient;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.PythonAiEmbeddingClient;
@@ -37,6 +39,9 @@ class RagAiConfigurationTest {
                             "rag-test-properties",
                             Map.of("rag.evidence-threshold", 0.7)));
             context.registerBean(RestClient.Builder.class, () -> RestClient.builder());
+            context.registerBean(
+                    DocumentChunkRepository.class,
+                    () -> mock(DocumentChunkRepository.class));
             context.registerBean(
                     DocumentSearchScopeService.class,
                     () -> documentSearchScopeService);

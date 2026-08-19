@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 
 import com.teamproject.japan_newhire_rag_backend.document.access.service.DocumentSearchScopeService;
+import com.teamproject.japan_newhire_rag_backend.document.chunk.repository.DocumentChunkRepository;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.AiEmbeddingClient;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagClient;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.PythonAiEmbeddingClient;
@@ -36,8 +37,9 @@ public class RagAiConfiguration {
     }
 
     @Bean
-    public SearchResultVerifier searchResultVerifier() {
-        return new SearchResultVerifier();
+    public SearchResultVerifier searchResultVerifier(
+            DocumentChunkRepository documentChunkRepository) {
+        return new SearchResultVerifier(documentChunkRepository);
     }
 
     @Bean
