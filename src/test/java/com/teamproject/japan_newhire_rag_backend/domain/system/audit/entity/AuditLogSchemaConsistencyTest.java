@@ -60,7 +60,7 @@ class AuditLogSchemaConsistencyTest {
     void repositoryContractDoesNotExposeUpdateOrDeleteOperations() throws Exception {
         Class<?> repositoryType = Class.forName(
                 "com.teamproject.japan_newhire_rag_backend.domain.system.audit.repository.AuditLogRepository");
-        assertEquals(List.of("save"), Arrays.stream(repositoryType.getDeclaredMethods())
+        assertEquals(List.of("findAllByFilters", "save"), Arrays.stream(repositoryType.getDeclaredMethods())
                 .map(method -> method.getName())
                 .sorted()
                 .toList());

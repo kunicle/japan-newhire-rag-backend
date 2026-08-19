@@ -85,6 +85,8 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/api/admin/users/**")
                         .hasRole("SYSTEM_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/admin/audit-logs")
+                        .hasRole("SYSTEM_ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/hr/employees/*/manager")
                         .hasRole("HR_MANAGER")
                         .anyRequest()

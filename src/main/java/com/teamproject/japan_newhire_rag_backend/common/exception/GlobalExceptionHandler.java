@@ -54,7 +54,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(
             HttpMessageNotReadableException exception
     ) {
-        return errorResponse(ErrorCode.INVALID_REQUEST, ErrorCode.INVALID_REQUEST.defaultMessage());
+        return errorResponse(
+                ErrorCode.INVALID_REQUEST,
+                ErrorCode.INVALID_REQUEST.defaultMessage());
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -65,14 +67,18 @@ public class GlobalExceptionHandler {
                 .findFirst()
                 .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
                 .orElse(ErrorCode.VALIDATION_ERROR.defaultMessage());
+
         return errorResponse(ErrorCode.VALIDATION_ERROR, message);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException exception) {
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(
+            IllegalArgumentException exception
+    ) {
         String message = Optional.ofNullable(exception.getMessage())
                 .filter(value -> !value.isBlank())
                 .orElse(ErrorCode.INVALID_REQUEST.defaultMessage());
+
         return errorResponse(ErrorCode.INVALID_REQUEST, message);
     }
 
@@ -97,16 +103,21 @@ public class GlobalExceptionHandler {
                 .findFirst()
                 .map(this::fieldErrorMessage)
                 .orElse(ErrorCode.VALIDATION_ERROR.defaultMessage());
+
         return errorResponse(ErrorCode.VALIDATION_ERROR, message);
     }
 
     private String fieldErrorMessage(FieldError fieldError) {
         String detail = Optional.ofNullable(fieldError.getDefaultMessage())
                 .orElse(ErrorCode.VALIDATION_ERROR.defaultMessage());
+
         return fieldError.getField() + ": " + detail;
     }
 
-    private ResponseEntity<ErrorResponse> errorResponse(ErrorCodeSpec errorCode, String message) {
+    private ResponseEntity<ErrorResponse> errorResponse(
+            ErrorCodeSpec errorCode,
+            String message
+    ) {
         return ResponseEntity.status(errorCode.status())
                 .body(ErrorResponse.from(errorCode, message));
     }
