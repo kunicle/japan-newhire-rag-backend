@@ -1,6 +1,7 @@
 package com.teamproject.japan_newhire_rag_backend.domain.education.entity;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 import com.teamproject.japan_newhire_rag_backend.common.entity.BaseEntity;
 import com.teamproject.japan_newhire_rag_backend.domain.education.enums.LearningCompletionStatus;
@@ -65,5 +66,33 @@ public class LearningProgress extends BaseEntity {
         progress.startedAt = null;
         progress.completedAt = null;
         return progress;
+    }
+
+    public boolean start(LocalDateTime startTime) {
+        Objects.requireNonNull(startTime);
+
+        if (completionStatus != LearningCompletionStatus.NOT_STARTED) {
+            return false;
+        }
+
+        completionStatus = LearningCompletionStatus.IN_PROGRESS;
+        startedAt = startTime;
+        return true;
+    }
+
+    public boolean complete(LocalDateTime completionTime) {
+        Objects.requireNonNull(completionTime);
+
+        if (completionStatus == LearningCompletionStatus.COMPLETED) {
+            return false;
+        }
+
+        if (startedAt == null) {
+            startedAt = completionTime;
+        }
+
+        completionStatus = LearningCompletionStatus.COMPLETED;
+        completedAt = completionTime;
+        return true;
     }
 }

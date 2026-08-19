@@ -29,4 +29,6 @@ public interface CourseModuleRepository extends JpaRepository<CourseModule, Long
             Long courseId,
             Long courseModuleId);
 
+    long countByCourse_CourseIdAndRequiredTrueAndActiveTrue(
+            Long courseId);
 }

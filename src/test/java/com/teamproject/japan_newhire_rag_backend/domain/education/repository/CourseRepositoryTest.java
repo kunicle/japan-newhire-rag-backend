@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -21,6 +22,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import com.teamproject.japan_newhire_rag_backend.common.config.JpaAuditingConfig;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.entity.AppUser;
@@ -311,6 +315,194 @@ class CourseRepositoryTest {
                 .findById(savedEnrollment.getCourseEnrollmentId()).orElseThrow();
         assertThat(foundEnrollment.getProgressRate()).isEqualByComparingTo("25.50");
         assertThat(learningProgressRepository.findById(savedProgress.getLearningProgressId())).isPresent();
+    }
+
+    @Test
+    void findsEmployeeEnrollmentsWithCourseUsingPage() {
+        Course course =
+                courseRepository.saveAndFlush(createCourse());
+
+        CourseAssignment assignment =
+                courseAssignmentRepository.saveAndFlush(
+                        createAssignment(course));
+
+        CourseEnrollment enrollment =
+                courseEnrollmentRepository.saveAndFlush(
+                        createEnrollment(
+                                course,
+                                assignment,
+                                "1"));
+
+        entityManager.clear();
+
+        Page<CourseEnrollment> foundPage =
+                courseEnrollmentRepository.findAllByEmployeeId(
+                        employee.getEmployeeId(),
+                        PageRequest.of(
+                                0,
+                                20,
+                                Sort.by(
+                                        Sort.Direction.DESC,
+                                        "courseEnrollmentId")));
+
+        assertThat(foundPage.getTotalElements()).isEqualTo(1);
+        assertThat(foundPage.getContent()).hasSize(1);
+
+        CourseEnrollment found =
+                foundPage.getContent().get(0);
+
+        assertThat(found.getCourseEnrollmentId())
+                .isEqualTo(enrollment.getCourseEnrollmentId());
+        assertThat(found.getEmployeeId())
+                .isEqualTo(employee.getEmployeeId());
+        assertThat(found.getCourse().getCourseId())
+                .isEqualTo(course.getCourseId());
+        assertThat(found.getCourse().getCourseName())
+                .isEqualTo("New hire basic course");
+    }
+
+    @Test
+    void findsActiveProgressesAndCountsRequiredCompletion() {
+        Course course =
+                courseRepository.saveAndFlush(createCourse());
+
+        CourseModule first = createModule(course, 1);
+        CourseModule inactive = createModule(course, 2);
+        CourseModule third = createModule(course, 3);
+        CourseModule optional = createModule(course, 4);
+
+        set(inactive, "active", false);
+        set(optional, "required", false);
+
+        courseModuleRepository.saveAllAndFlush(
+                List.of(first, inactive, third, optional));
+
+        CourseAssignment assignment =
+                courseAssignmentRepository.saveAndFlush(
+                        createAssignment(course));
+
+        CourseEnrollment enrollment =
+                courseEnrollmentRepository.saveAndFlush(
+                        createEnrollment(
+                                course,
+                                assignment,
+                                "1"));
+
+        LocalDateTime completionTime =
+                LocalDateTime.of(2026, 8, 20, 9, 0);
+
+        LearningProgress firstProgress =
+                LearningProgress.create(enrollment, first);
+        firstProgress.complete(completionTime);
+
+        LearningProgress inactiveProgress =
+                LearningProgress.create(enrollment, inactive);
+        inactiveProgress.complete(completionTime);
+
+        LearningProgress thirdProgress =
+                LearningProgress.create(enrollment, third);
+        thirdProgress.start(completionTime);
+
+        LearningProgress optionalProgress =
+                LearningProgress.create(enrollment, optional);
+        optionalProgress.complete(completionTime);
+
+        learningProgressRepository.saveAllAndFlush(
+                List.of(
+                        firstProgress,
+                        inactiveProgress,
+                        thirdProgress,
+                        optionalProgress));
+
+        Long firstProgressId =
+                firstProgress.getLearningProgressId();
+
+        entityManager.clear();
+
+        List<LearningProgress> activeProgresses =
+                learningProgressRepository
+                        .findAllByCourseEnrollment_CourseEnrollmentIdAndCourseModule_ActiveTrueOrderByCourseModule_ModuleOrderAsc(
+                                enrollment.getCourseEnrollmentId());
+
+        assertThat(activeProgresses)
+                .extracting(progress ->
+                        progress.getCourseModule().getModuleOrder())
+                .containsExactly(1, 3, 4);
+
+        long totalRequired =
+                courseModuleRepository
+                        .countByCourse_CourseIdAndRequiredTrueAndActiveTrue(
+                                course.getCourseId());
+
+        long completedRequired =
+                learningProgressRepository
+                        .countByCourseEnrollment_CourseEnrollmentIdAndCourseModule_RequiredTrueAndCourseModule_ActiveTrueAndCompletionStatus(
+                                enrollment.getCourseEnrollmentId(),
+                                LearningCompletionStatus.COMPLETED);
+
+        assertThat(totalRequired).isEqualTo(2);
+        assertThat(completedRequired).isEqualTo(1);
+
+        LearningProgress foundProgress =
+                learningProgressRepository
+                        .findByLearningProgressId(firstProgressId)
+                        .orElseThrow();
+
+        assertThat(foundProgress.getCourseEnrollment()
+                .getCourse().getCourseId())
+                .isEqualTo(course.getCourseId());
+        assertThat(foundProgress.getCourseModule()
+                .getCourseModuleId())
+                .isEqualTo(first.getCourseModuleId());
+    }
+
+    @Test
+    void completionCountQueryFlushesChangedProgressAutomatically() {
+        Course course =
+                courseRepository.saveAndFlush(createCourse());
+
+        CourseModule module =
+                courseModuleRepository.saveAndFlush(
+                        createModule(course, 1));
+
+        CourseAssignment assignment =
+                courseAssignmentRepository.saveAndFlush(
+                        createAssignment(course));
+
+        CourseEnrollment enrollment =
+                courseEnrollmentRepository.saveAndFlush(
+                        createEnrollment(
+                                course,
+                                assignment,
+                                "1"));
+
+        LearningProgress progress =
+                LearningProgress.create(enrollment, module);
+
+        learningProgressRepository.saveAndFlush(progress);
+
+        Long progressId =
+                progress.getLearningProgressId();
+        Long enrollmentId =
+                enrollment.getCourseEnrollmentId();
+
+        entityManager.clear();
+
+        LearningProgress found =
+                learningProgressRepository
+                        .findByLearningProgressId(progressId)
+                        .orElseThrow();
+
+        found.complete(
+                LocalDateTime.of(2026, 8, 20, 9, 0));
+
+        long completedRequired =
+                learningProgressRepository
+                        .countByCourseEnrollment_CourseEnrollmentIdAndCourseModule_RequiredTrueAndCourseModule_ActiveTrueAndCompletionStatus(
+                                enrollmentId,
+                                LearningCompletionStatus.COMPLETED);
+
+        assertThat(completedRequired).isEqualTo(1);
     }
 
     @Test
