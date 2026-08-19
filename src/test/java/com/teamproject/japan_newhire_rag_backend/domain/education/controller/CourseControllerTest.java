@@ -1,25 +1,17 @@
 package com.teamproject.japan_newhire_rag_backend.domain.education.controller;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,13 +21,20 @@ import org.springframework.security.authentication.AuthenticationCredentialsNotF
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
-import com.teamproject.japan_newhire_rag_backend.common.exception.GlobalExceptionHandler;
 import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCode;
 import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessException;
+import com.teamproject.japan_newhire_rag_backend.common.exception.GlobalExceptionHandler;
 import com.teamproject.japan_newhire_rag_backend.domain.education.controller.dto.CourseCreateRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.education.controller.dto.CoursePageResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.education.controller.dto.CoursePublicationUpdateRequest;
@@ -335,17 +334,25 @@ class CourseControllerTest {
     }
 
     @Test
-    void publicationConflictUsesCommonConflictResponse() throws Exception {
+    void invalidPublicationTransitionUsesCommonConflictResponse()
+            throws Exception {
         when(courseService.changePublicationStatus(any(), any()))
                 .thenThrow(new BusinessException(
                         ErrorCode.CONFLICT,
-                        "An active required module is required to publish the course"));
+                        "Course publication status cannot transition "
+                                + "from DRAFT to PRIVATE"));
+
 
         mockMvc.perform(patch("/api/hr/courses/100/publication")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"publicationStatus\":\"PUBLIC\"}"))
+                        .content(
+                                "{\"publicationStatus\":\"PRIVATE\"}"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("CONFLICT"));
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.code").value("CONFLICT"))
+                .andExpect(jsonPath("$.message").value(
+                        "Course publication status cannot transition "
+                                + "from DRAFT to PRIVATE"));
     }
 
     @Test

@@ -21,6 +21,7 @@ import com.teamproject.japan_newhire_rag_backend.domain.education.controller.dto
 import com.teamproject.japan_newhire_rag_backend.domain.education.controller.dto.CourseUpdateRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.education.entity.Course;
 import com.teamproject.japan_newhire_rag_backend.domain.education.enums.CoursePublicationStatus;
+import com.teamproject.japan_newhire_rag_backend.domain.education.repository.CourseEnrollmentRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.education.repository.CourseModuleRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.education.repository.CourseRepository;
 
@@ -34,15 +35,18 @@ public class CourseService {
 
     private final CourseRepository courseRepository;
     private final CourseModuleRepository courseModuleRepository;
+    private final CourseEnrollmentRepository courseEnrollmentRepository;
     private final CurrentUserProvider currentUserProvider;
 
     public CourseService(
             CourseRepository courseRepository,
             CourseModuleRepository courseModuleRepository,
+            CourseEnrollmentRepository courseEnrollmentRepository,
             CurrentUserProvider currentUserProvider
     ) {
         this.courseRepository = courseRepository;
         this.courseModuleRepository = courseModuleRepository;
+        this.courseEnrollmentRepository = courseEnrollmentRepository;
         this.currentUserProvider = currentUserProvider;
     }
 
@@ -106,16 +110,32 @@ public class CourseService {
             CoursePublicationUpdateRequest request
     ) {
         validateCurrentHrManager();
-        Course course = findActiveCourse(courseId);
-        CoursePublicationStatus requestedStatus = request.publicationStatus();
 
-        if (course.getPublicationStatus() == requestedStatus) {
+        Course course = findActiveCourse(courseId);
+        CoursePublicationStatus currentStatus =
+                course.getPublicationStatus();
+        CoursePublicationStatus requestedStatus =
+                request.publicationStatus();
+
+        // 같은 상태 요청은 기존 상태를 그대로 반환
+        if (currentStatus == requestedStatus) {
             return CourseResponse.from(course);
         }
 
+        boolean hasOperationHistory =
+                requestedStatus == CoursePublicationStatus.DRAFT
+                        && courseEnrollmentRepository
+                                .existsByCourse_CourseId(courseId);
+
+        validatePublicationTransition(
+                currentStatus,
+                requestedStatus,
+                hasOperationHistory);
+
         if (requestedStatus == CoursePublicationStatus.PUBLIC
                 && !courseModuleRepository
-                        .existsByCourse_CourseIdAndRequiredTrueAndActiveTrue(courseId)) {
+                        .existsByCourse_CourseIdAndRequiredTrueAndActiveTrue(
+                                courseId)) {
             throw new BusinessException(
                     ErrorCode.CONFLICT,
                     "An active required module is required to publish the course");
@@ -179,5 +199,54 @@ public class CourseService {
                     ErrorCode.INVALID_REQUEST,
                     "Size must be between 1 and " + MAX_PAGE_SIZE);
         }
+    }
+
+    private void validatePublicationTransition(
+            CoursePublicationStatus currentStatus,
+            CoursePublicationStatus requestedStatus,
+            boolean hasOperationHistory
+    ) {
+        if (currentStatus == CoursePublicationStatus.DRAFT
+                && requestedStatus == CoursePublicationStatus.PRIVATE) {
+            throw invalidPublicationTransition(
+                    currentStatus,
+                    requestedStatus);
+        }
+
+        if (requestedStatus == CoursePublicationStatus.DRAFT
+                && hasOperationHistory) {
+            throw new BusinessException(
+                    ErrorCode.CONFLICT,
+                    "A course with operation history cannot return to DRAFT");
+        }
+
+        boolean allowedTransition =
+                (currentStatus == CoursePublicationStatus.DRAFT
+                        && requestedStatus == CoursePublicationStatus.PUBLIC)
+                || (currentStatus == CoursePublicationStatus.PUBLIC
+                        && requestedStatus == CoursePublicationStatus.PRIVATE)
+                || (currentStatus == CoursePublicationStatus.PRIVATE
+                        && requestedStatus == CoursePublicationStatus.PUBLIC)
+                || ((currentStatus == CoursePublicationStatus.PUBLIC
+                        || currentStatus == CoursePublicationStatus.PRIVATE)
+                        && requestedStatus == CoursePublicationStatus.DRAFT);
+
+        if (!allowedTransition) {
+            throw invalidPublicationTransition(
+                    currentStatus,
+                    requestedStatus);
+        }
+    }
+
+    private BusinessException invalidPublicationTransition(
+            CoursePublicationStatus currentStatus,
+            CoursePublicationStatus requestedStatus
+    ) {
+        return new BusinessException(
+                ErrorCode.CONFLICT,
+                "Course publication status cannot transition from "
+                        + currentStatus
+                        + " to "
+                        + requestedStatus);
     }
 }
