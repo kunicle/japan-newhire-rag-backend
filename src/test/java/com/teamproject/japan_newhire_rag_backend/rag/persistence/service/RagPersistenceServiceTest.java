@@ -2,9 +2,12 @@ package com.teamproject.japan_newhire_rag_backend.rag.persistence.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -19,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.teamproject.japan_newhire_rag_backend.document.chunk.entity.DocumentChunk;
 import com.teamproject.japan_newhire_rag_backend.document.chunk.repository.DocumentChunkRepository;
+import com.teamproject.japan_newhire_rag_backend.document.entity.Document;
 import com.teamproject.japan_newhire_rag_backend.document.version.entity.DocumentVersion;
 import com.teamproject.japan_newhire_rag_backend.document.version.repository.DocumentVersionRepository;
 import com.teamproject.japan_newhire_rag_backend.rag.model.entity.AiModel;
@@ -80,6 +84,7 @@ class RagPersistenceServiceTest {
         verify(ragQuestionRepository).save(captor.capture());
         assertEquals("휴가 규정", captor.getValue().getQuestionText());
         assertEquals(7L, captor.getValue().getCreatedBy());
+        assertEquals("PENDING", captor.getValue().getProcessingStatus());
         assertSame(savedQuestion, result);
     }
 
@@ -135,12 +140,15 @@ class RagPersistenceServiceTest {
     @Test
     void persistsAnswerAndCitationsInInputOrder() {
         RagSearch ragSearch = org.mockito.Mockito.mock(RagSearch.class);
-        DocumentChunk firstChunk = org.mockito.Mockito.mock(DocumentChunk.class);
-        DocumentChunk secondChunk = org.mockito.Mockito.mock(DocumentChunk.class);
+        DocumentChunk firstChunk = citationChunk(
+                101L, "취업규칙", "v1", "제1조", "첫 번째 인용문");
+        DocumentChunk secondChunk = citationChunk(
+                102L, "휴가규정", "v2", "제2조", "두 번째 인용문");
         when(ragAnswerRepository.save(any(RagAnswer.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(documentChunkRepository.getReferenceById(101L)).thenReturn(firstChunk);
-        when(documentChunkRepository.getReferenceById(102L)).thenReturn(secondChunk);
+        when(documentChunkRepository.findAllWithDocumentAndVersionByDocumentChunkIdIn(
+                List.of(101L, 102L)))
+                .thenReturn(List.of(secondChunk, firstChunk));
 
         service.persistAnswer(ragSearch, "답변", List.of(101L, 102L));
 
@@ -149,10 +157,14 @@ class RagPersistenceServiceTest {
         assertEquals("답변", savedAnswer.getAnswerText());
         List<RagCitation> citations = captureCitations();
         assertEquals(2, citations.size());
-        assertCitation(citations.get(0), savedAnswer, firstChunk, 1);
-        assertCitation(citations.get(1), savedAnswer, secondChunk, 2);
-        verify(documentChunkRepository).getReferenceById(101L);
-        verify(documentChunkRepository).getReferenceById(102L);
+        assertCitation(
+                citations.get(0), savedAnswer, firstChunk, 1,
+                "취업규칙", "v1", "제1조", "첫 번째 인용문");
+        assertCitation(
+                citations.get(1), savedAnswer, secondChunk, 2,
+                "휴가규정", "v2", "제2조", "두 번째 인용문");
+        verify(documentChunkRepository)
+                .findAllWithDocumentAndVersionByDocumentChunkIdIn(List.of(101L, 102L));
     }
 
     @Test
@@ -167,24 +179,117 @@ class RagPersistenceServiceTest {
         assertSame(ragSearch, savedAnswer.getRagSearch());
         assertEquals("답변", savedAnswer.getAnswerText());
         assertEquals(List.of(), captureCitations());
+        verify(documentChunkRepository, never())
+                .findAllWithDocumentAndVersionByDocumentChunkIdIn(any());
     }
 
     @Test
     void preservesDuplicateCitationChunkIdsAtDifferentPositions() {
         RagSearch ragSearch = org.mockito.Mockito.mock(RagSearch.class);
-        DocumentChunk chunk = org.mockito.Mockito.mock(DocumentChunk.class);
+        DocumentChunk chunk = citationChunk(
+                101L, "취업규칙", "v1", "제1조", "중복 인용문");
         when(ragAnswerRepository.save(any(RagAnswer.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(documentChunkRepository.getReferenceById(101L)).thenReturn(chunk);
+        when(documentChunkRepository.findAllWithDocumentAndVersionByDocumentChunkIdIn(
+                List.of(101L, 101L)))
+                .thenReturn(List.of(chunk));
 
         service.persistAnswer(ragSearch, "답변", List.of(101L, 101L));
 
         RagAnswer savedAnswer = captureAnswer();
         List<RagCitation> citations = captureCitations();
         assertEquals(2, citations.size());
-        assertCitation(citations.get(0), savedAnswer, chunk, 1);
-        assertCitation(citations.get(1), savedAnswer, chunk, 2);
-        verify(documentChunkRepository, times(2)).getReferenceById(101L);
+        assertCitation(
+                citations.get(0), savedAnswer, chunk, 1,
+                "취업규칙", "v1", "제1조", "중복 인용문");
+        assertCitation(
+                citations.get(1), savedAnswer, chunk, 2,
+                "취업규칙", "v1", "제1조", "중복 인용문");
+        verify(documentChunkRepository)
+                .findAllWithDocumentAndVersionByDocumentChunkIdIn(List.of(101L, 101L));
+    }
+
+    @Test
+    void persistsNullArticleNumberSnapshot() {
+        RagSearch ragSearch = mock(RagSearch.class);
+        DocumentChunk chunk = citationChunk(
+                101L, "취업규칙", "v1", null, "인용문");
+        when(ragAnswerRepository.save(any(RagAnswer.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(documentChunkRepository.findAllWithDocumentAndVersionByDocumentChunkIdIn(
+                List.of(101L)))
+                .thenReturn(List.of(chunk));
+
+        service.persistAnswer(ragSearch, "답변", List.of(101L));
+
+        RagCitation citation = captureCitations().get(0);
+        assertEquals(null, citation.getArticleNumberSnapshot());
+        assertEquals("인용문", citation.getCitedText());
+    }
+
+    @Test
+    void failsClosedWhenRequestedCitationChunkIsMissing() {
+        RagSearch ragSearch = mock(RagSearch.class);
+        DocumentChunk firstChunk = citationChunk(
+                101L, "취업규칙", "v1", "제1조", "인용문");
+        when(ragAnswerRepository.save(any(RagAnswer.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(documentChunkRepository.findAllWithDocumentAndVersionByDocumentChunkIdIn(
+                List.of(101L, 102L)))
+                .thenReturn(List.of(firstChunk));
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> service.persistAnswer(ragSearch, "답변", List.of(101L, 102L)));
+
+        verifyNoInteractions(ragCitationRepository);
+    }
+
+    @Test
+    void marksQuestionProcessingAndSavesExplicitly() {
+        RagQuestion question = RagQuestion.create("질문", 1L);
+
+        service.markQuestionProcessing(question);
+
+        assertEquals("PROCESSING", question.getProcessingStatus());
+        verify(ragQuestionRepository).save(question);
+    }
+
+    @Test
+    void marksQuestionAnsweredClearsFailureAndSavesExplicitly() {
+        RagQuestion question = RagQuestion.create("질문", 1L);
+        question.markFailed("API_ERROR", "실패");
+
+        service.markQuestionAnswered(question);
+
+        assertEquals("ANSWERED", question.getProcessingStatus());
+        assertEquals(null, question.getFailureType());
+        assertEquals(null, question.getFailureReason());
+        verify(ragQuestionRepository).save(question);
+    }
+
+    @Test
+    void marksQuestionRejectedWithFailureAndSavesExplicitly() {
+        RagQuestion question = RagQuestion.create("질문", 1L);
+
+        service.markQuestionRejected(question, "LOW_SIMILARITY", "근거 부족");
+
+        assertEquals("REJECTED", question.getProcessingStatus());
+        assertEquals("LOW_SIMILARITY", question.getFailureType());
+        assertEquals("근거 부족", question.getFailureReason());
+        verify(ragQuestionRepository).save(question);
+    }
+
+    @Test
+    void marksQuestionFailedWithFailureAndSavesExplicitly() {
+        RagQuestion question = RagQuestion.create("질문", 1L);
+
+        service.markQuestionFailed(question, "API_ERROR", "외부 서비스 실패");
+
+        assertEquals("FAILED", question.getProcessingStatus());
+        assertEquals("API_ERROR", question.getFailureType());
+        assertEquals("외부 서비스 실패", question.getFailureReason());
+        verify(ragQuestionRepository).save(question);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -229,9 +334,36 @@ class RagPersistenceServiceTest {
             RagCitation citation,
             RagAnswer ragAnswer,
             DocumentChunk documentChunk,
-            int position) {
+            int position,
+            String documentName,
+            String versionName,
+            String articleNumber,
+            String citedText) {
         assertSame(ragAnswer, citation.getRagAnswer());
         assertSame(documentChunk, citation.getDocumentChunk());
         assertEquals(position, citation.getPosition());
+        assertEquals(documentName, citation.getDocumentNameSnapshot());
+        assertEquals(versionName, citation.getVersionNameSnapshot());
+        assertEquals(articleNumber, citation.getArticleNumberSnapshot());
+        assertEquals(citedText, citation.getCitedText());
+    }
+
+    private DocumentChunk citationChunk(
+            Long chunkId,
+            String documentName,
+            String versionName,
+            String articleNumber,
+            String chunkContent) {
+        Document document = mock(Document.class);
+        when(document.getDocumentName()).thenReturn(documentName);
+        DocumentVersion documentVersion = mock(DocumentVersion.class);
+        when(documentVersion.getDocument()).thenReturn(document);
+        when(documentVersion.getVersionName()).thenReturn(versionName);
+        DocumentChunk chunk = mock(DocumentChunk.class);
+        when(chunk.getDocumentChunkId()).thenReturn(chunkId);
+        when(chunk.getDocumentVersion()).thenReturn(documentVersion);
+        when(chunk.getArticleNumber()).thenReturn(articleNumber);
+        when(chunk.getChunkContent()).thenReturn(chunkContent);
+        return chunk;
     }
 }

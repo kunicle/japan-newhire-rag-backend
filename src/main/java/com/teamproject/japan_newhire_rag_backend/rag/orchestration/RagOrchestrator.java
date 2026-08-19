@@ -52,7 +52,12 @@ public class RagOrchestrator {
                         List.copyOf(allowedDocumentVersionIds),
                         providerName,
                         modelName);
-        AiRagSearchResponse searchResponse = aiRagClient.search(searchRequest);
+        AiRagSearchResponse searchResponse;
+        try {
+            searchResponse = aiRagClient.search(searchRequest);
+        } catch (RuntimeException exception) {
+            throw new ExternalAiCallException(exception);
+        }
         List<AiRagSearchResultItem> verifiedSearchResults =
                 searchResultVerifier.filterByAllowedDocumentVersions(
                         searchResponse.searchResults(),
@@ -76,7 +81,12 @@ public class RagOrchestrator {
 
         AiRagGenerateRequest generateRequest =
                 new AiRagGenerateRequest(question, searchResult.verifiedSearchResults());
-        AiRagGenerateResponse generateResponse = aiRagClient.generate(generateRequest);
+        AiRagGenerateResponse generateResponse;
+        try {
+            generateResponse = aiRagClient.generate(generateRequest);
+        } catch (RuntimeException exception) {
+            throw new ExternalAiCallException(exception);
+        }
         List<Long> validCitedChunkIds = citationValidator.filterValidCitations(
                 generateResponse.citedChunkIds(),
                 searchResult.verifiedSearchResults());

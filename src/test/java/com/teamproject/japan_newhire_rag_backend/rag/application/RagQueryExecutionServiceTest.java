@@ -29,6 +29,7 @@ import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserCont
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProvider;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagSearchResultItem;
 import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagGenerationOrchestrationResult;
+import com.teamproject.japan_newhire_rag_backend.rag.orchestration.ExternalAiCallException;
 import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagOrchestrator;
 import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagSearchOrchestrationResult;
 import com.teamproject.japan_newhire_rag_backend.rag.persistence.entity.RagQuestion;
@@ -98,7 +99,12 @@ class RagQueryExecutionServiceTest {
         RagQueryResult result = service.execute(QUESTION);
 
         assertEquals(new RagQueryResult(false, null, List.of()), result);
-        verify(ragPersistenceService).persistQuestion(QUESTION, 1001L);
+        InOrder order = inOrder(ragPersistenceService);
+        order.verify(ragPersistenceService).persistQuestion(QUESTION, 1001L);
+        order.verify(ragPersistenceService).markQuestionRejected(
+                ragQuestion,
+                "NO_ACCESSIBLE_DOCUMENT",
+                "접근 가능한 규정 문서가 없습니다.");
         verify(ragPersistenceService, never()).persistSearch(
                 any(), any(), anyList());
         verify(ragPersistenceService, never()).persistAnswer(
@@ -137,14 +143,22 @@ class RagQueryExecutionServiceTest {
         IllegalStateException expected = new IllegalStateException("search failed");
         stubQuestionPersistence(ragQuestion);
         when(ragOrchestrator.search(QUESTION, Set.of(1L, 2L), "provider", "model"))
-                .thenThrow(expected);
+                .thenThrow(new ExternalAiCallException(expected));
 
         IllegalStateException actual = assertThrows(
                 IllegalStateException.class,
                 () -> service.execute(QUESTION));
 
         assertSame(expected, actual);
-        verify(ragPersistenceService).persistQuestion(QUESTION, 1001L);
+        InOrder order = inOrder(ragPersistenceService, ragOrchestrator);
+        order.verify(ragPersistenceService).persistQuestion(QUESTION, 1001L);
+        order.verify(ragPersistenceService).markQuestionProcessing(ragQuestion);
+        order.verify(ragOrchestrator).search(
+                QUESTION, Set.of(1L, 2L), "provider", "model");
+        order.verify(ragPersistenceService).markQuestionFailed(
+                ragQuestion,
+                "API_ERROR",
+                "외부 AI 서비스 호출에 실패했습니다.");
         verify(ragPersistenceService, never()).persistSearch(
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
@@ -156,6 +170,24 @@ class RagQueryExecutionServiceTest {
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.anyList());
+    }
+
+    @Test
+    void doesNotMarkApiErrorForInternalSearchFailure() {
+        RagQuestion ragQuestion = org.mockito.Mockito.mock(RagQuestion.class);
+        IllegalStateException expected = new IllegalStateException("verification failed");
+        stubQuestionPersistence(ragQuestion);
+        when(ragOrchestrator.search(QUESTION, Set.of(1L, 2L), "provider", "model"))
+                .thenThrow(expected);
+
+        IllegalStateException actual = assertThrows(
+                IllegalStateException.class,
+                () -> service.execute(QUESTION));
+
+        assertSame(expected, actual);
+        verify(ragPersistenceService, never()).markQuestionFailed(any(), any(), any());
+        verify(ragPersistenceService, never()).persistSearch(any(), any(), anyList());
+        verify(ragPersistenceService, never()).persistAnswer(any(), any(), anyList());
     }
 
     @Test
@@ -174,6 +206,7 @@ class RagQueryExecutionServiceTest {
                 () -> service.execute(QUESTION));
 
         assertSame(expected, actual);
+        verify(ragPersistenceService).markQuestionProcessing(ragQuestion);
         verify(ragOrchestrator, never()).generate(any(), any());
         verify(ragPersistenceService, never()).persistAnswer(
                 org.mockito.ArgumentMatchers.any(),
@@ -199,6 +232,15 @@ class RagQueryExecutionServiceTest {
         verify(ragPersistenceService).persistSearch(same(ragQuestion), eq(10L), captor.capture());
         assertEquals(List.of(), captor.getValue());
         assertEquals(new RagQueryResult(false, null, List.of()), result);
+        InOrder order = inOrder(ragPersistenceService, ragOrchestrator);
+        order.verify(ragPersistenceService).markQuestionProcessing(ragQuestion);
+        order.verify(ragOrchestrator).search(
+                QUESTION, Set.of(1L, 2L), "provider", "model");
+        order.verify(ragPersistenceService).persistSearch(same(ragQuestion), eq(10L), anyList());
+        order.verify(ragPersistenceService).markQuestionRejected(
+                ragQuestion,
+                "LOW_SIMILARITY",
+                "답변을 생성할 충분한 근거를 찾지 못했습니다.");
         verify(ragOrchestrator, never()).generate(any(), any());
         verify(ragPersistenceService, never()).persistAnswer(
                 org.mockito.ArgumentMatchers.any(),
@@ -229,6 +271,15 @@ class RagQueryExecutionServiceTest {
                 new RagSearchPersistenceItem(201L, 101L, 0.61),
                 new RagSearchPersistenceItem(202L, 102L, 0.52)), captor.getValue());
         assertEquals(new RagQueryResult(false, null, List.of()), result);
+        InOrder order = inOrder(ragPersistenceService, ragOrchestrator);
+        order.verify(ragPersistenceService).markQuestionProcessing(ragQuestion);
+        order.verify(ragOrchestrator).search(
+                QUESTION, Set.of(1L, 2L), "provider", "model");
+        order.verify(ragPersistenceService).persistSearch(same(ragQuestion), eq(10L), anyList());
+        order.verify(ragPersistenceService).markQuestionRejected(
+                ragQuestion,
+                "LOW_SIMILARITY",
+                "답변을 생성할 충분한 근거를 찾지 못했습니다.");
         verify(ragOrchestrator, never()).generate(any(), any());
         verify(ragPersistenceService, never()).persistAnswer(
                 org.mockito.ArgumentMatchers.any(),
@@ -243,7 +294,8 @@ class RagQueryExecutionServiceTest {
         RagSearchOrchestrationResult searchResult = sufficientSearchResult();
         IllegalStateException expected = new IllegalStateException("generate failed");
         stubThroughPersistSearch(ragQuestion, ragSearch, searchResult);
-        when(ragOrchestrator.generate(QUESTION, searchResult)).thenThrow(expected);
+        when(ragOrchestrator.generate(QUESTION, searchResult))
+                .thenThrow(new ExternalAiCallException(expected));
 
         IllegalStateException actual = assertThrows(
                 IllegalStateException.class,
@@ -251,12 +303,37 @@ class RagQueryExecutionServiceTest {
 
         assertSame(expected, actual);
         InOrder order = inOrder(ragPersistenceService, ragOrchestrator);
+        order.verify(ragPersistenceService).markQuestionProcessing(ragQuestion);
+        order.verify(ragOrchestrator).search(
+                QUESTION, Set.of(1L, 2L), "provider", "model");
         order.verify(ragPersistenceService).persistSearch(same(ragQuestion), eq(10L), anyList());
         order.verify(ragOrchestrator).generate(QUESTION, searchResult);
+        order.verify(ragPersistenceService).markQuestionFailed(
+                ragQuestion,
+                "API_ERROR",
+                "외부 AI 서비스 호출에 실패했습니다.");
         verify(ragPersistenceService, never()).persistAnswer(
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.anyList());
+    }
+
+    @Test
+    void doesNotMarkApiErrorForInternalGenerateFailure() {
+        RagQuestion ragQuestion = org.mockito.Mockito.mock(RagQuestion.class);
+        RagSearch ragSearch = org.mockito.Mockito.mock(RagSearch.class);
+        RagSearchOrchestrationResult searchResult = sufficientSearchResult();
+        IllegalStateException expected = new IllegalStateException("generate guard failed");
+        stubThroughPersistSearch(ragQuestion, ragSearch, searchResult);
+        when(ragOrchestrator.generate(QUESTION, searchResult)).thenThrow(expected);
+
+        IllegalStateException actual = assertThrows(
+                IllegalStateException.class,
+                () -> service.execute(QUESTION));
+
+        assertSame(expected, actual);
+        verify(ragPersistenceService, never()).markQuestionFailed(any(), any(), any());
+        verify(ragPersistenceService, never()).persistAnswer(any(), any(), anyList());
     }
 
     @Test
@@ -276,6 +353,8 @@ class RagQueryExecutionServiceTest {
                 () -> service.execute(QUESTION));
 
         assertSame(expected, actual);
+        verify(ragPersistenceService).markQuestionProcessing(ragQuestion);
+        verify(ragPersistenceService, never()).markQuestionAnswered(any());
     }
 
     @Test
@@ -305,6 +384,7 @@ class RagQueryExecutionServiceTest {
         order.verify(ragQueryService).prepareSearch(QUESTION);
         order.verify(currentUserProvider).getCurrentUser();
         order.verify(ragPersistenceService).persistQuestion(QUESTION, 1001L);
+        order.verify(ragPersistenceService).markQuestionProcessing(ragQuestion);
         order.verify(ragOrchestrator).search(
                 QUESTION, plan.allowedDocumentVersionIds(), "provider", "model");
         ArgumentCaptor<List<RagSearchPersistenceItem>> captor = persistenceItemsCaptor();
@@ -313,6 +393,7 @@ class RagQueryExecutionServiceTest {
         order.verify(ragOrchestrator).generate(QUESTION, searchResult);
         order.verify(ragPersistenceService).persistAnswer(
                 same(ragSearch), eq("답변"), eq(List.of(201L)));
+        order.verify(ragPersistenceService).markQuestionAnswered(ragQuestion);
         assertEquals(List.of(new RagSearchPersistenceItem(201L, 101L, 0.81)), captor.getValue());
         assertEquals(new RagQueryResult(true, "답변", List.of(201L)), result);
     }

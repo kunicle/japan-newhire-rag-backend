@@ -2,6 +2,9 @@ package com.teamproject.japan_newhire_rag_backend.rag.persistence.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,6 +63,32 @@ public class RagPersistenceService {
         return ragQuestionRepository.save(ragQuestion);
     }
 
+    public void markQuestionProcessing(RagQuestion ragQuestion) {
+        ragQuestion.markProcessing();
+        ragQuestionRepository.save(ragQuestion);
+    }
+
+    public void markQuestionAnswered(RagQuestion ragQuestion) {
+        ragQuestion.markAnswered();
+        ragQuestionRepository.save(ragQuestion);
+    }
+
+    public void markQuestionRejected(
+            RagQuestion ragQuestion,
+            String failureType,
+            String failureReason) {
+        ragQuestion.markRejected(failureType, failureReason);
+        ragQuestionRepository.save(ragQuestion);
+    }
+
+    public void markQuestionFailed(
+            RagQuestion ragQuestion,
+            String failureType,
+            String failureReason) {
+        ragQuestion.markFailed(failureType, failureReason);
+        ragQuestionRepository.save(ragQuestion);
+    }
+
     public RagSearch persistSearch(
             RagQuestion ragQuestion,
             Long aiModelId,
@@ -89,11 +118,34 @@ public class RagPersistenceService {
             List<Long> validCitedChunkIds) {
         RagAnswer ragAnswer = ragAnswerRepository.save(RagAnswer.create(ragSearch, answerText));
 
+        if (validCitedChunkIds.isEmpty()) {
+            ragCitationRepository.saveAll(List.of());
+            return;
+        }
+
+        Map<Long, DocumentChunk> chunksById = documentChunkRepository
+                .findAllWithDocumentAndVersionByDocumentChunkIdIn(validCitedChunkIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        DocumentChunk::getDocumentChunkId,
+                        Function.identity()));
+
         List<RagCitation> citations = new ArrayList<>();
         int position = 1;
         for (Long chunkId : validCitedChunkIds) {
-            DocumentChunk documentChunk = documentChunkRepository.getReferenceById(chunkId);
-            citations.add(RagCitation.create(ragAnswer, documentChunk, position));
+            DocumentChunk documentChunk = chunksById.get(chunkId);
+            if (documentChunk == null) {
+                throw new IllegalStateException("검증된 인용 chunk를 찾을 수 없습니다: " + chunkId);
+            }
+            DocumentVersion documentVersion = documentChunk.getDocumentVersion();
+            citations.add(RagCitation.create(
+                    ragAnswer,
+                    documentChunk,
+                    position,
+                    documentVersion.getDocument().getDocumentName(),
+                    documentVersion.getVersionName(),
+                    documentChunk.getArticleNumber(),
+                    documentChunk.getChunkContent()));
             position++;
         }
         ragCitationRepository.saveAll(citations);

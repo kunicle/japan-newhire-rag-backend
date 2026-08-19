@@ -272,6 +272,9 @@ CREATE TABLE rag_question (
     rag_question_id BIGINT NOT NULL AUTO_INCREMENT,
     question_text TEXT NOT NULL,
     created_by BIGINT NOT NULL,
+    processing_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    failure_type VARCHAR(50) NULL,
+    failure_reason VARCHAR(1000) NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT pk_rag_question PRIMARY KEY (rag_question_id),
     CONSTRAINT fk_rag_question_created_by
@@ -337,6 +340,10 @@ CREATE TABLE rag_citation (
     rag_answer_id BIGINT NOT NULL,
     document_chunk_id BIGINT NOT NULL,
     position INT NOT NULL,
+    document_name_snapshot VARCHAR(200) NOT NULL,
+    version_name_snapshot VARCHAR(20) NOT NULL,
+    article_number_snapshot VARCHAR(50) NULL,
+    cited_text TEXT NOT NULL,
     CONSTRAINT pk_rag_citation PRIMARY KEY (rag_citation_id),
     CONSTRAINT fk_rag_citation_answer
         FOREIGN KEY (rag_answer_id) REFERENCES rag_answer (rag_answer_id)

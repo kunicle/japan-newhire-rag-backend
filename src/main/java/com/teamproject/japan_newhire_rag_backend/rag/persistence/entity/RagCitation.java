@@ -44,16 +44,50 @@ public class RagCitation {
     @Column(name = "position", nullable = false)
     private int position;
 
-    private RagCitation(RagAnswer ragAnswer, DocumentChunk documentChunk, int position) {
+    @Column(name = "document_name_snapshot", nullable = false, length = 200)
+    private String documentNameSnapshot;
+
+    @Column(name = "version_name_snapshot", nullable = false, length = 20)
+    private String versionNameSnapshot;
+
+    @Column(name = "article_number_snapshot", length = 50)
+    private String articleNumberSnapshot;
+
+    @Column(name = "cited_text", nullable = false, columnDefinition = "TEXT")
+    private String citedText;
+
+    private RagCitation(
+            RagAnswer ragAnswer,
+            DocumentChunk documentChunk,
+            int position,
+            String documentNameSnapshot,
+            String versionNameSnapshot,
+            String articleNumberSnapshot,
+            String citedText) {
         this.ragAnswer = ragAnswer;
         this.documentChunk = documentChunk;
         this.position = position;
+        this.documentNameSnapshot = documentNameSnapshot;
+        this.versionNameSnapshot = versionNameSnapshot;
+        this.articleNumberSnapshot = articleNumberSnapshot;
+        this.citedText = citedText;
     }
 
     public static RagCitation create(
             RagAnswer ragAnswer,
             DocumentChunk documentChunk,
-            int position) {
-        return new RagCitation(ragAnswer, documentChunk, position);
+            int position,
+            String documentNameSnapshot,
+            String versionNameSnapshot,
+            String articleNumberSnapshot,
+            String citedText) {
+        return new RagCitation(
+                ragAnswer,
+                documentChunk,
+                position,
+                documentNameSnapshot,
+                versionNameSnapshot,
+                articleNumberSnapshot,
+                citedText);
     }
 }

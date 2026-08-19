@@ -44,9 +44,31 @@ class CoreRagPersistenceSchemaConsistencyTest {
     @Test
     void entityColumnsAndUniqueConstraintsMatchOfficialSchema() throws Exception {
         assertColumn(RagQuestion.class, "questionText", "question_text", false);
+        assertColumn(RagQuestion.class, "processingStatus", "processing_status", false, 20);
+        assertColumn(RagQuestion.class, "failureType", "failure_type", true, 50);
+        assertColumn(RagQuestion.class, "failureReason", "failure_reason", true, 1000);
         assertColumn(RagAnswer.class, "answerText", "answer_text", false);
         assertColumn(RagSearchResult.class, "similarityScore", "similarity_score", false);
         assertColumn(RagSearchResult.class, "resultRank", "result_rank", false);
+        assertColumn(
+                RagCitation.class,
+                "documentNameSnapshot",
+                "document_name_snapshot",
+                false,
+                200);
+        assertColumn(
+                RagCitation.class,
+                "versionNameSnapshot",
+                "version_name_snapshot",
+                false,
+                20);
+        assertColumn(
+                RagCitation.class,
+                "articleNumberSnapshot",
+                "article_number_snapshot",
+                true,
+                50);
+        assertColumn(RagCitation.class, "citedText", "cited_text", false);
 
         JoinColumn answerSearch = RagAnswer.class.getDeclaredField("ragSearch")
                 .getAnnotation(JoinColumn.class);
@@ -69,7 +91,15 @@ class CoreRagPersistenceSchemaConsistencyTest {
         String ddl = Files.readString(DDL).replaceAll("\\s+", " ");
 
         assertTrue(ddl.contains("question_text TEXT NOT NULL"));
+        assertTrue(ddl.contains(
+                "processing_status VARCHAR(20) NOT NULL DEFAULT 'PENDING'"));
+        assertTrue(ddl.contains("failure_type VARCHAR(50) NULL"));
+        assertTrue(ddl.contains("failure_reason VARCHAR(1000) NULL"));
         assertTrue(ddl.contains("answer_text TEXT NOT NULL"));
+        assertTrue(ddl.contains("document_name_snapshot VARCHAR(200) NOT NULL"));
+        assertTrue(ddl.contains("version_name_snapshot VARCHAR(20) NOT NULL"));
+        assertTrue(ddl.contains("article_number_snapshot VARCHAR(50) NULL"));
+        assertTrue(ddl.contains("cited_text TEXT NOT NULL"));
         assertTrue(ddl.contains("similarity_score DOUBLE NOT NULL"));
         assertTrue(ddl.contains("result_rank INT NOT NULL"));
         assertTrue(ddl.contains("UNIQUE (rag_search_id, result_rank)"));
@@ -104,6 +134,19 @@ class CoreRagPersistenceSchemaConsistencyTest {
         Column column = field.getAnnotation(Column.class);
         assertEquals(columnName, column.name());
         assertEquals(nullable, column.nullable());
+    }
+
+    private void assertColumn(
+            Class<?> entityType,
+            String fieldName,
+            String columnName,
+            boolean nullable,
+            int length) throws Exception {
+        Field field = entityType.getDeclaredField(fieldName);
+        Column column = field.getAnnotation(Column.class);
+        assertEquals(columnName, column.name());
+        assertEquals(nullable, column.nullable());
+        assertEquals(length, column.length());
     }
 
     private void assertUniqueConstraint(

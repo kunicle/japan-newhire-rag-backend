@@ -2,6 +2,7 @@ package com.teamproject.japan_newhire_rag_backend.rag.orchestration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -17,6 +18,7 @@ import com.teamproject.japan_newhire_rag_backend.document.chunk.entity.DocumentC
 import com.teamproject.japan_newhire_rag_backend.document.chunk.repository.DocumentChunkRepository;
 import com.teamproject.japan_newhire_rag_backend.document.version.entity.DocumentVersion;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagGenerateResponse;
+import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagClient;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagSearchResponse;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagSearchResultItem;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.FakeAiRagClient;
@@ -69,9 +71,10 @@ class RagOrchestratorTest {
         RagSearchOrchestrationResult insufficientResult =
                 new RagSearchOrchestrationResult(false, List.of(createSearchResult(1L, 10L, 0.8)));
 
-        assertThrows(IllegalStateException.class,
+        IllegalStateException exception = assertThrows(IllegalStateException.class,
                 () -> orchestrator.generate(QUESTION, insufficientResult));
 
+        assertEquals(IllegalStateException.class, exception.getClass());
         assertEquals(0, aiRagClient.getGenerateCallCount());
     }
 
@@ -175,12 +178,69 @@ class RagOrchestratorTest {
         assertEquals(0, aiRagClient.getGenerateCallCount());
     }
 
+    @Test
+    void wrapsOnlyExternalSearchFailure() {
+        AiRagClient failingClient = mock(AiRagClient.class);
+        IllegalStateException originalFailure = new IllegalStateException("external search failed");
+        when(failingClient.search(any())).thenThrow(originalFailure);
+        RagOrchestrator failingOrchestrator = createOrchestrator(failingClient);
+
+        ExternalAiCallException exception = assertThrows(
+                ExternalAiCallException.class,
+                () -> failingOrchestrator.search(
+                        QUESTION, Set.of(1L), PROVIDER_NAME, MODEL_NAME));
+
+        assertSame(originalFailure, exception.getOriginalFailure());
+    }
+
+    @Test
+    void doesNotWrapInternalSearchVerificationFailure() {
+        AiRagSearchResultItem result = createSearchResult(1L, 10L, 0.8);
+        aiRagClient.registerSearchResponse(
+                QUESTION,
+                new AiRagSearchResponse(List.of(result)));
+        IllegalStateException originalFailure = new IllegalStateException("database failed");
+        when(documentChunkRepository.findAllById(any())).thenThrow(originalFailure);
+
+        IllegalStateException actual = assertThrows(
+                IllegalStateException.class,
+                () -> search(Set.of(1L)));
+
+        assertSame(originalFailure, actual);
+    }
+
+    @Test
+    void wrapsOnlyExternalGenerateFailure() {
+        AiRagClient failingClient = mock(AiRagClient.class);
+        IllegalStateException originalFailure = new IllegalStateException("external generate failed");
+        when(failingClient.generate(any())).thenThrow(originalFailure);
+        RagOrchestrator failingOrchestrator = createOrchestrator(failingClient);
+        RagSearchOrchestrationResult sufficientResult = new RagSearchOrchestrationResult(
+                true,
+                List.of(createSearchResult(1L, 10L, 0.8)));
+
+        ExternalAiCallException exception = assertThrows(
+                ExternalAiCallException.class,
+                () -> failingOrchestrator.generate(QUESTION, sufficientResult));
+
+        assertSame(originalFailure, exception.getOriginalFailure());
+    }
+
     private RagSearchOrchestrationResult search(Set<Long> allowedDocumentVersionIds) {
         return orchestrator.search(
                 QUESTION,
                 allowedDocumentVersionIds,
                 PROVIDER_NAME,
                 MODEL_NAME);
+    }
+
+    private RagOrchestrator createOrchestrator(AiRagClient client) {
+        return new RagOrchestrator(
+                client,
+                new SearchResultVerifier(documentChunkRepository),
+                new EvidenceThresholdChecker(),
+                new CitationValidator(),
+                EVIDENCE_THRESHOLD);
     }
 
     private AiRagSearchResultItem createSearchResult(
