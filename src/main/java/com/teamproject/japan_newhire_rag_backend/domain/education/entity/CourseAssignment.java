@@ -71,4 +71,30 @@ public class CourseAssignment {
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    public static CourseAssignment create(
+            Course course,
+            AssignmentTargetType targetType,
+            Long employeeId,
+            Long departmentId,
+            Long jobGradeId,
+            String enrollmentRound,
+            LocalDate enrollmentStartDate,
+            LocalDate enrollmentDueDate,
+            Long assignedBy
+    ) {
+        CourseAssignment assignment = new CourseAssignment();
+        assignment.course = course;
+        assignment.targetType = targetType;
+        assignment.employeeId = employeeId;
+        assignment.departmentId = departmentId;
+        assignment.jobGradeId = jobGradeId;
+        assignment.newEmployeeTarget =
+                targetType == AssignmentTargetType.NEW_HIRE;
+        assignment.enrollmentRound = enrollmentRound;
+        assignment.enrollmentStartDate = enrollmentStartDate;
+        assignment.enrollmentDueDate = enrollmentDueDate;
+        assignment.assignedBy = assignedBy;
+        return assignment;
+    }
 }

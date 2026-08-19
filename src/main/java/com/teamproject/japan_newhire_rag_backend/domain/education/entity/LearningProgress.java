@@ -53,4 +53,17 @@ public class LearningProgress extends BaseEntity {
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
+
+    public static LearningProgress create(
+        CourseEnrollment courseEnrollment,
+        CourseModule courseModule
+    ) {
+        LearningProgress progress = new LearningProgress();
+        progress.courseEnrollment = courseEnrollment;
+        progress.courseModule = courseModule;
+        progress.completionStatus = LearningCompletionStatus.NOT_STARTED;
+        progress.startedAt = null;
+        progress.completedAt = null;
+        return progress;
+    }
 }
