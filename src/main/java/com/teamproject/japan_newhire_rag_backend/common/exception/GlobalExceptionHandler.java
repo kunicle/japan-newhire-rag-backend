@@ -3,6 +3,7 @@ package com.teamproject.japan_newhire_rag_backend.common.exception;
 import java.util.Optional;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.BindingResult;
@@ -10,7 +11,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCode;
 import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCodeSpec;
@@ -73,6 +74,15 @@ public class GlobalExceptionHandler {
                 .filter(value -> !value.isBlank())
                 .orElse(ErrorCode.INVALID_REQUEST.defaultMessage());
         return errorResponse(ErrorCode.INVALID_REQUEST, message);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatch(
+            MethodArgumentTypeMismatchException exception
+    ) {
+        return errorResponse(
+                ErrorCode.INVALID_REQUEST,
+                "Invalid request parameter");
     }
 
     @ExceptionHandler(Exception.class)

@@ -67,4 +67,25 @@ public class CourseEnrollment extends BaseEntity {
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
+
+    public static CourseEnrollment create(
+        Course course,
+        Long employeeId,
+        CourseAssignment courseAssignment,
+        String enrollmentRound,
+        LocalDate enrollmentStartDate,
+        LocalDate enrollmentDueDate
+    ) {
+        CourseEnrollment enrollment = new CourseEnrollment();
+        enrollment.course = course;
+        enrollment.employeeId = employeeId;
+        enrollment.courseAssignment = courseAssignment;
+        enrollment.enrollmentRound = enrollmentRound;
+        enrollment.enrollmentStatus = EnrollmentStatus.NOT_STARTED;
+        enrollment.progressRate = BigDecimal.ZERO;
+        enrollment.enrollmentStartDate = enrollmentStartDate;
+        enrollment.enrollmentDueDate = enrollmentDueDate;
+        enrollment.completedAt = null;
+        return enrollment;
+    }
 }

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -16,6 +17,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
@@ -195,6 +197,93 @@ class CourseRepositoryTest {
     }
 
     @Test
+    void findsOnlyActiveCourseModulesOrderedByModuleOrder() {
+        Course course = courseRepository.saveAndFlush(createCourse());
+
+        CourseModule third = createModule(course, 3);
+        CourseModule first = createModule(course, 1);
+        CourseModule second = createModule(course, 2);
+        set(second, "active", false);
+
+        courseModuleRepository.saveAllAndFlush(
+                List.of(third, first, second));
+        entityManager.clear();
+
+        List<CourseModule> found = courseModuleRepository
+                .findAllByCourse_CourseIdAndActiveTrueOrderByModuleOrderAsc(
+                        course.getCourseId());
+
+        assertThat(found)
+                .extracting(CourseModule::getModuleOrder)
+                .containsExactly(1, 3);
+
+        assertThat(found)
+                .allMatch(CourseModule::isActive);
+    }
+
+    @Test
+    void findsExistingEnrollmentsByEmployeeIdsAndEnrollmentRound() {
+        Course course = courseRepository.saveAndFlush(createCourse());
+
+        CourseAssignment firstRoundAssignment = createAssignment(course);
+        CourseAssignment secondRoundAssignment = createAssignment(course);
+        set(secondRoundAssignment, "enrollmentRound", "2");
+
+        courseAssignmentRepository.saveAllAndFlush(
+                List.of(firstRoundAssignment, secondRoundAssignment));
+
+        CourseEnrollment firstRoundEnrollment = createEnrollment(
+                course,
+                firstRoundAssignment,
+                "1");
+
+        CourseEnrollment secondRoundEnrollment = createEnrollment(
+                course,
+                secondRoundAssignment,
+                "2");
+
+        courseEnrollmentRepository.saveAllAndFlush(
+                List.of(firstRoundEnrollment, secondRoundEnrollment));
+        entityManager.clear();
+
+        List<CourseEnrollment> found = courseEnrollmentRepository
+                .findAllByCourse_CourseIdAndEmployeeIdInAndEnrollmentRound(
+                        course.getCourseId(),
+                        List.of(employee.getEmployeeId(), Long.MAX_VALUE),
+                        "1");
+
+        assertThat(found).hasSize(1);
+        assertThat(found.get(0).getEmployeeId())
+                .isEqualTo(employee.getEmployeeId());
+        assertThat(found.get(0).getEnrollmentRound())
+                .isEqualTo("1");
+    }
+
+    @Test
+    void rejectsDuplicateEnrollmentForSameCourseEmployeeAndRound() {
+        Course course = courseRepository.saveAndFlush(createCourse());
+        CourseAssignment assignment =
+                courseAssignmentRepository.saveAndFlush(createAssignment(course));
+
+        CourseEnrollment firstEnrollment = createEnrollment(
+                course,
+                assignment,
+                "1");
+
+        courseEnrollmentRepository.saveAndFlush(firstEnrollment);
+
+        CourseEnrollment duplicateEnrollment = createEnrollment(
+                course,
+                assignment,
+                "1");
+
+        assertThatThrownBy(() ->
+                courseEnrollmentRepository.saveAndFlush(duplicateEnrollment))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+
+    @Test
     void savesEnrollmentProgressAndAllEducationRepositories() {
         Course course = courseRepository.saveAndFlush(createCourse());
         CourseModule module = courseModuleRepository.saveAndFlush(createModule(course));
@@ -290,6 +379,23 @@ class CourseRepositoryTest {
         set(assignment, "enrollmentDueDate", LocalDate.of(2026, 8, 31));
         set(assignment, "assignedBy", appUser.getAppUserId());
         return assignment;
+    }
+
+    private CourseEnrollment createEnrollment(
+            Course course,
+            CourseAssignment assignment,
+            String enrollmentRound
+    ) {
+        CourseEnrollment enrollment = newEntity(CourseEnrollment.class);
+        set(enrollment, "course", course);
+        set(enrollment, "employeeId", employee.getEmployeeId());
+        set(enrollment, "courseAssignment", assignment);
+        set(enrollment, "enrollmentRound", enrollmentRound);
+        set(enrollment, "enrollmentStatus", EnrollmentStatus.NOT_STARTED);
+        set(enrollment, "progressRate", BigDecimal.ZERO);
+        set(enrollment, "enrollmentStartDate", LocalDate.of(2026, 8, 11));
+        set(enrollment, "enrollmentDueDate", LocalDate.of(2026, 8, 31));
+        return enrollment;
     }
 
     private static <T> T newEntity(Class<T> type) {
