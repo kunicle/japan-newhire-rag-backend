@@ -1,8 +1,10 @@
 package com.teamproject.japan_newhire_rag_backend.domain.education.entity;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 import com.teamproject.japan_newhire_rag_backend.common.entity.BaseEntity;
 import com.teamproject.japan_newhire_rag_backend.domain.education.enums.EnrollmentStatus;
@@ -87,5 +89,75 @@ public class CourseEnrollment extends BaseEntity {
         enrollment.enrollmentDueDate = enrollmentDueDate;
         enrollment.completedAt = null;
         return enrollment;
+    }
+
+    public EnrollmentStatus getEffectiveStatus(LocalDate today) {
+        Objects.requireNonNull(today);
+
+        if (enrollmentStatus == EnrollmentStatus.COMPLETED) {
+            return EnrollmentStatus.COMPLETED;
+        }
+
+        if (enrollmentDueDate.isBefore(today)) {
+            return EnrollmentStatus.OVERDUE;
+        }
+
+        return enrollmentStatus;
+    }
+
+    public boolean applyOverdueIfNeeded(LocalDate today) {
+        Objects.requireNonNull(today);
+
+        if (enrollmentStatus == EnrollmentStatus.COMPLETED
+                || !enrollmentDueDate.isBefore(today)
+                || enrollmentStatus == EnrollmentStatus.OVERDUE) {
+            return false;
+        }
+
+        enrollmentStatus = EnrollmentStatus.OVERDUE;
+        return true;
+    }
+
+    public boolean startLearning(LocalDate today) {
+        Objects.requireNonNull(today);
+
+        if (enrollmentStatus == EnrollmentStatus.COMPLETED) {
+            return false;
+        }
+
+        applyOverdueIfNeeded(today);
+
+        if (enrollmentStatus == EnrollmentStatus.NOT_STARTED) {
+            enrollmentStatus = EnrollmentStatus.IN_PROGRESS;
+            return true;
+        }
+
+        return false;
+    }
+
+    public void updateProgressRate(BigDecimal progressRate) {
+        if (progressRate == null
+                || progressRate.compareTo(BigDecimal.ZERO) < 0
+                || progressRate.compareTo(new BigDecimal("100.00")) > 0) {
+            throw new IllegalArgumentException(
+                    "Progress rate must be between 0 and 100");
+        }
+
+        this.progressRate = progressRate.setScale(
+                2,
+                RoundingMode.HALF_UP);
+    }
+
+    public boolean complete(LocalDateTime completionTime) {
+        Objects.requireNonNull(completionTime);
+
+        if (enrollmentStatus == EnrollmentStatus.COMPLETED) {
+            return false;
+        }
+
+        enrollmentStatus = EnrollmentStatus.COMPLETED;
+        progressRate = new BigDecimal("100.00");
+        completedAt = completionTime;
+        return true;
     }
 }
