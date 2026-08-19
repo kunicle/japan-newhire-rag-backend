@@ -7,10 +7,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -31,7 +33,11 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
+import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCode;
+import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessException;
 import com.teamproject.japan_newhire_rag_backend.common.exception.GlobalExceptionHandler;
+import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserContext;
+import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProvider;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.config.SecurityConfig;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.RoleType;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.security.JwtAuthenticationFilter;
@@ -40,6 +46,9 @@ import com.teamproject.japan_newhire_rag_backend.domain.auth.security.RestAuthen
 import com.teamproject.japan_newhire_rag_backend.domain.auth.service.internal.InternalJwtAuthenticationQueryService;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.service.internal.JwtAuthenticationUser;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.token.AccessTokenService;
+import com.teamproject.japan_newhire_rag_backend.rag.application.RagQuestionHistoryDetail;
+import com.teamproject.japan_newhire_rag_backend.rag.application.RagQuestionHistoryItem;
+import com.teamproject.japan_newhire_rag_backend.rag.application.RagQuestionHistoryService;
 import com.teamproject.japan_newhire_rag_backend.rag.application.RagQueryExecutionService;
 import com.teamproject.japan_newhire_rag_backend.rag.application.RagQueryResult;
 import com.teamproject.japan_newhire_rag_backend.rag.persistence.service.RagCitationSnapshot;
@@ -63,6 +72,8 @@ class RagQueryControllerTest {
 
     @Autowired WebApplicationContext applicationContext;
     @Autowired RagQueryExecutionService ragQueryExecutionService;
+    @Autowired CurrentUserProvider currentUserProvider;
+    @Autowired RagQuestionHistoryService ragQuestionHistoryService;
     @Autowired AccessTokenService accessTokenService;
     @Autowired InternalJwtAuthenticationQueryService authenticationQueryService;
 
@@ -70,7 +81,12 @@ class RagQueryControllerTest {
 
     @BeforeEach
     void setUp() {
-        reset(ragQueryExecutionService, accessTokenService, authenticationQueryService);
+        reset(
+                ragQueryExecutionService,
+                currentUserProvider,
+                ragQuestionHistoryService,
+                accessTokenService,
+                authenticationQueryService);
         SecurityContextHolder.clearContext();
         mockMvc = MockMvcBuilders.webAppContextSetup(applicationContext)
                 .apply(springSecurity())
@@ -179,6 +195,105 @@ class RagQueryControllerTest {
                 .andExpect(status().isInternalServerError());
     }
 
+    @Test
+    void returnsAuthenticatedUsersQuestionHistory() throws Exception {
+        authenticateAs(RoleType.EMPLOYEE);
+        CurrentUserContext currentUser = currentUser();
+        LocalDateTime askedAt = LocalDateTime.of(2026, 8, 19, 10, 0);
+        when(currentUserProvider.getCurrentUser()).thenReturn(currentUser);
+        when(ragQuestionHistoryService.getQuestionHistory(currentUser))
+                .thenReturn(List.of(new RagQuestionHistoryItem(
+                        10L, "연차는 몇 일인가요?", "ANSWERED", askedAt)));
+
+        mockMvc.perform(get("/api/rag/questions/me")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].questionId").value(10))
+                .andExpect(jsonPath("$[0].question").value("연차는 몇 일인가요?"))
+                .andExpect(jsonPath("$[0].status").value("ANSWERED"))
+                .andExpect(jsonPath("$[0].askedAt").value("2026-08-19T10:00:00"));
+
+        verify(currentUserProvider).getCurrentUser();
+        verify(ragQuestionHistoryService).getQuestionHistory(currentUser);
+    }
+
+    @Test
+    void returnsEmptyQuestionHistory() throws Exception {
+        authenticateAs(RoleType.EMPLOYEE);
+        CurrentUserContext currentUser = currentUser();
+        when(currentUserProvider.getCurrentUser()).thenReturn(currentUser);
+        when(ragQuestionHistoryService.getQuestionHistory(currentUser)).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/rag/questions/me")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$").isEmpty());
+
+        verify(ragQuestionHistoryService).getQuestionHistory(currentUser);
+    }
+
+    @Test
+    void returnsOwnedQuestionDetailWithCitationSnapshots() throws Exception {
+        authenticateAs(RoleType.EMPLOYEE);
+        CurrentUserContext currentUser = currentUser();
+        LocalDateTime askedAt = LocalDateTime.of(2026, 8, 19, 10, 0);
+        when(currentUserProvider.getCurrentUser()).thenReturn(currentUser);
+        when(ragQuestionHistoryService.getQuestionDetail(currentUser, 10L))
+                .thenReturn(new RagQuestionHistoryDetail(
+                        10L,
+                        "연차는 몇 일인가요?",
+                        "ANSWERED",
+                        askedAt,
+                        "연차는 연 15일입니다.",
+                        List.of(
+                                new RagCitationSnapshot(
+                                        101L, "취업규칙", "v1", "제5조", "첫 번째 근거"),
+                                new RagCitationSnapshot(
+                                        102L, "휴가규정", "v2", null, "두 번째 근거"))));
+
+        mockMvc.perform(get("/api/rag/questions/10")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.questionId").value(10))
+                .andExpect(jsonPath("$.question").value("연차는 몇 일인가요?"))
+                .andExpect(jsonPath("$.status").value("ANSWERED"))
+                .andExpect(jsonPath("$.askedAt").value("2026-08-19T10:00:00"))
+                .andExpect(jsonPath("$.answer").value("연차는 연 15일입니다."))
+                .andExpect(jsonPath("$.citations[0].documentChunkId").value(101))
+                .andExpect(jsonPath("$.citations[0].documentName").value("취업규칙"))
+                .andExpect(jsonPath("$.citations[0].versionName").value("v1"))
+                .andExpect(jsonPath("$.citations[0].articleNumber").value("제5조"))
+                .andExpect(jsonPath("$.citations[0].citedText").value("첫 번째 근거"))
+                .andExpect(jsonPath("$.citations[1].articleNumber").value(nullValue()));
+
+        verify(ragQuestionHistoryService).getQuestionDetail(currentUser, 10L);
+    }
+
+    @Test
+    void returnsNotFoundForUnavailableQuestionDetail() throws Exception {
+        authenticateAs(RoleType.EMPLOYEE);
+        CurrentUserContext currentUser = currentUser();
+        when(currentUserProvider.getCurrentUser()).thenReturn(currentUser);
+        when(ragQuestionHistoryService.getQuestionDetail(currentUser, 99L))
+                .thenThrow(new BusinessException(
+                        ErrorCode.RESOURCE_NOT_FOUND,
+                        "질문을 찾을 수 없습니다."));
+
+        mockMvc.perform(get("/api/rag/questions/99")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    void unauthenticatedHistoryRequestIsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/rag/questions/me"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(currentUserProvider, ragQuestionHistoryService);
+    }
+
     private MockHttpServletRequestBuilder authenticatedQuestionRequest(String content) {
         return questionRequest(content).header("Authorization", "Bearer " + ACCESS_TOKEN);
     }
@@ -195,6 +310,11 @@ class RagQueryControllerTest {
                 .thenReturn(new JwtAuthenticationUser(1L, Set.of(role)));
     }
 
+    private CurrentUserContext currentUser() {
+        return new CurrentUserContext(
+                1001L, 2001L, Set.of(RoleType.EMPLOYEE), 10L, 1, null);
+    }
+
     @Configuration
     @EnableWebMvc
     @Import({
@@ -209,6 +329,12 @@ class RagQueryControllerTest {
         @Bean ObjectMapper objectMapper() { return JsonMapper.builder().build(); }
         @Bean RagQueryExecutionService ragQueryExecutionService() {
             return mock(RagQueryExecutionService.class);
+        }
+        @Bean CurrentUserProvider currentUserProvider() {
+            return mock(CurrentUserProvider.class);
+        }
+        @Bean RagQuestionHistoryService ragQuestionHistoryService() {
+            return mock(RagQuestionHistoryService.class);
         }
         @Bean AccessTokenService accessTokenService() { return mock(AccessTokenService.class); }
         @Bean InternalJwtAuthenticationQueryService authenticationQueryService() {

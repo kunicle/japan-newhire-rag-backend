@@ -21,13 +21,6 @@ class CoreRagPersistenceSchemaConsistencyTest {
     private static final Path DDL = Path.of(
             "src/main/resources/db/ddl/b-domain-schema.sql");
 
-    private static final List<Class<?>> REPOSITORIES = List.of(
-            com.teamproject.japan_newhire_rag_backend.rag.persistence.repository.RagQuestionRepository.class,
-            com.teamproject.japan_newhire_rag_backend.rag.persistence.repository.RagSearchRepository.class,
-            com.teamproject.japan_newhire_rag_backend.rag.persistence.repository.RagSearchResultRepository.class,
-            com.teamproject.japan_newhire_rag_backend.rag.persistence.repository.RagAnswerRepository.class,
-            com.teamproject.japan_newhire_rag_backend.rag.persistence.repository.RagCitationRepository.class);
-
     @Test
     void entitiesUseOfficialTableAndPrimaryKeyColumnNames() throws Exception {
         assertTableAndPrimaryKey(RagQuestion.class, "rag_question", "ragQuestionId", "rag_question_id");
@@ -108,10 +101,17 @@ class CoreRagPersistenceSchemaConsistencyTest {
     }
 
     @Test
-    void repositoriesDeclareNoCustomMethods() {
-        for (Class<?> repository : REPOSITORIES) {
-            assertEquals(0, repository.getDeclaredMethods().length);
-        }
+    void repositoriesDeclareExpectedMethods() {
+        assertEquals(2, com.teamproject.japan_newhire_rag_backend.rag.persistence.repository
+                .RagQuestionRepository.class.getDeclaredMethods().length);
+        assertEquals(1, com.teamproject.japan_newhire_rag_backend.rag.persistence.repository
+                .RagSearchRepository.class.getDeclaredMethods().length);
+        assertEquals(0, com.teamproject.japan_newhire_rag_backend.rag.persistence.repository
+                .RagSearchResultRepository.class.getDeclaredMethods().length);
+        assertEquals(1, com.teamproject.japan_newhire_rag_backend.rag.persistence.repository
+                .RagAnswerRepository.class.getDeclaredMethods().length);
+        assertEquals(1, com.teamproject.japan_newhire_rag_backend.rag.persistence.repository
+                .RagCitationRepository.class.getDeclaredMethods().length);
     }
 
     private void assertTableAndPrimaryKey(
