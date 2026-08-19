@@ -12,6 +12,8 @@ import jakarta.persistence.LockModeType;
 
 public interface UserRoleRepository extends JpaRepository<UserRole, Long> {
 
+    boolean existsByRole_RoleCodeAndRole_IsActiveTrueAndRevokedAtIsNull(String roleCode);
+
     @EntityGraph(attributePaths = "role")
     List<UserRole> findByAppUser_AppUserIdAndRevokedAtIsNull(Long appUserId);
 
