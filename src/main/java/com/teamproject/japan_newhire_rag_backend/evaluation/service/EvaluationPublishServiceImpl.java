@@ -31,6 +31,8 @@ import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationRepository
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationStatus;
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationType;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationPublishRequest;
+import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationPublishPreviewFeedbackResponse;
+import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationPublishPreviewResponse;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationPublishResponse;
 import com.teamproject.japan_newhire_rag_backend.evaluation.error.EvaluationErrorCode;
 
@@ -61,6 +63,30 @@ public class EvaluationPublishServiceImpl implements EvaluationPublishService {
         this.currentUserProvider = currentUserProvider;
         this.auditLogRecordService = auditLogRecordService;
         this.clock = clock;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EvaluationPublishPreviewResponse getPublishPreview(Long evaluationId) {
+        requireHrManager();
+        Evaluation entry = evaluationRepository.findById(evaluationId)
+                .orElseThrow(() -> new BusinessException(EvaluationErrorCode.EVALUATION_NOT_FOUND));
+        EvaluationSet evaluations = findEvaluationSet(entry);
+        List<EvaluationPublishPreviewFeedbackResponse> managerFeedbacks = feedbackRepository
+                .findByEvaluationId(evaluations.manager.getEvaluationId()).stream()
+                .map(feedback -> new EvaluationPublishPreviewFeedbackResponse(
+                        feedback.getEvaluationFeedbackId(),
+                        feedback.getEvaluationItemId(),
+                        feedback.getFeedbackType(),
+                        feedback.getFeedbackContent(),
+                        feedback.getIsVisibleToEmployee()))
+                .toList();
+        return new EvaluationPublishPreviewResponse(
+                evaluations.self.getEvaluationCycleId(),
+                evaluations.self.getTargetEmployeeId(),
+                evaluations.self.getEvaluationId(),
+                evaluations.manager.getEvaluationId(),
+                managerFeedbacks);
     }
 
     @Override

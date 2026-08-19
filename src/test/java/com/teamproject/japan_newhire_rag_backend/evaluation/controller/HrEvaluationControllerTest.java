@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
@@ -21,11 +22,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationCycleStatus;
+import com.teamproject.japan_newhire_rag_backend.evaluation.FeedbackType;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationAssignmentRequest;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationCycleCreateRequest;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationCycleUpdateRequest;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationItemCreateRequest;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationItemUpdateRequest;
+import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationPublishPreviewFeedbackResponse;
+import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationPublishPreviewResponse;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationPublishRequest;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationTemplateCreateRequest;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationTemplateUpdateRequest;
@@ -147,12 +151,25 @@ class HrEvaluationControllerTest {
 
     @Test
     void mapsAssignmentProgressAndOfficialPublishEndpoint() throws Exception {
+        when(publishService.getPublishPreview(30L)).thenReturn(
+                new EvaluationPublishPreviewResponse(7L, 20L, 30L, 31L, List.of(
+                        new EvaluationPublishPreviewFeedbackResponse(
+                                11L, 9L, FeedbackType.ITEM, "feedback", false),
+                        new EvaluationPublishPreviewFeedbackResponse(
+                                12L, null, FeedbackType.OVERALL, "overall", true))));
         mockMvc.perform(post("/api/hr/evaluation-assignments")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"evaluationCycleId\":7,\"targetEmployeeId\":20}"))
                 .andExpect(status().isCreated());
         mockMvc.perform(get("/api/hr/evaluations/progress").param("cycleId", "7"))
                 .andExpect(status().isOk());
+        mockMvc.perform(get("/api/hr/evaluations/30/publish-preview"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.selfEvaluationId").value(30))
+                .andExpect(jsonPath("$.managerEvaluationId").value(31))
+                .andExpect(jsonPath("$.managerFeedbacks[0].evaluationFeedbackId").value(11))
+                .andExpect(jsonPath("$.managerFeedbacks[0].evaluationItemId").value(9))
+                .andExpect(jsonPath("$.managerFeedbacks[1].evaluationItemId").doesNotExist());
         mockMvc.perform(patch("/api/hr/evaluations/30/publish")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -165,6 +182,7 @@ class HrEvaluationControllerTest {
         verify(assignmentService).assign(assignment.capture());
         assertEquals(20L, assignment.getValue().targetEmployeeId());
         verify(progressService).getCycleProgress(7L);
+        verify(publishService).getPublishPreview(30L);
         ArgumentCaptor<EvaluationPublishRequest> publish =
                 ArgumentCaptor.forClass(EvaluationPublishRequest.class);
         verify(publishService).publish(org.mockito.ArgumentMatchers.eq(30L), publish.capture());

@@ -54,6 +54,7 @@ import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationPublishHis
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationRepository;
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationStatus;
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationType;
+import com.teamproject.japan_newhire_rag_backend.evaluation.FeedbackType;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationPublishRequest;
 import com.teamproject.japan_newhire_rag_backend.evaluation.error.EvaluationErrorCode;
 
@@ -68,6 +69,7 @@ class EvaluationPublishServiceImplTest {
     private static final Long SELF_FEEDBACK_ID = 101L;
     private static final Long SELECTED_MANAGER_FEEDBACK_ID = 201L;
     private static final Long HIDDEN_MANAGER_FEEDBACK_ID = 202L;
+    private static final Long MANAGER_ITEM_ID = 301L;
     private static final LocalDate TODAY = LocalDate.of(2026, 8, 20);
     private static final LocalDateTime PUBLISHED_AT = LocalDateTime.of(2026, 8, 20, 3, 4, 5);
     private static final Clock CLOCK = Clock.fixed(
@@ -104,15 +106,76 @@ class EvaluationPublishServiceImplTest {
         lenient().when(cycle.getEndDate()).thenReturn(TODAY.minusDays(1));
         lenient().when(cycle.getPlannedPublishDate()).thenReturn(TODAY.plusDays(10));
         lenient().when(cycle.getCycleStatus()).thenReturn(EvaluationCycleStatus.OPEN);
-        givenFeedback(selfFeedback, SELF_FEEDBACK_ID, SELF_ID, false, "self content");
+        givenFeedback(selfFeedback, SELF_FEEDBACK_ID, SELF_ID, MANAGER_ITEM_ID,
+                FeedbackType.ITEM, false, "self content");
         givenFeedback(selectedManagerFeedback, SELECTED_MANAGER_FEEDBACK_ID,
-                MANAGER_ID, false, "selected content");
+                MANAGER_ID, MANAGER_ITEM_ID, FeedbackType.ITEM,
+                false, "selected content");
         givenFeedback(hiddenManagerFeedback, HIDDEN_MANAGER_FEEDBACK_ID,
-                MANAGER_ID, true, "hidden content");
+                MANAGER_ID, null, FeedbackType.OVERALL,
+                true, "hidden content");
         lenient().when(feedbackRepository.findByEvaluationId(SELF_ID))
                 .thenReturn(List.of(selfFeedback));
         lenient().when(feedbackRepository.findByEvaluationId(MANAGER_ID))
                 .thenReturn(List.of(selectedManagerFeedback, hiddenManagerFeedback));
+    }
+
+    @Test
+    void hrManagerPreviewsManagerItemAndOverallFeedbackFromSelfEntry() {
+        var response = service.getPublishPreview(SELF_ID);
+
+        assertEquals(CYCLE_ID, response.evaluationCycleId());
+        assertEquals(TARGET_ID, response.targetEmployeeId());
+        assertEquals(SELF_ID, response.selfEvaluationId());
+        assertEquals(MANAGER_ID, response.managerEvaluationId());
+        assertEquals(2, response.managerFeedbacks().size());
+        var item = response.managerFeedbacks().get(0);
+        assertEquals(SELECTED_MANAGER_FEEDBACK_ID, item.evaluationFeedbackId());
+        assertEquals(MANAGER_ITEM_ID, item.evaluationItemId());
+        assertEquals(FeedbackType.ITEM, item.feedbackType());
+        assertEquals("selected content", item.feedbackContent());
+        assertFalse(item.isVisibleToEmployee());
+        var overall = response.managerFeedbacks().get(1);
+        assertEquals(HIDDEN_MANAGER_FEEDBACK_ID, overall.evaluationFeedbackId());
+        assertEquals(null, overall.evaluationItemId());
+        assertEquals(FeedbackType.OVERALL, overall.feedbackType());
+        assertEquals("hidden content", overall.feedbackContent());
+        assertTrue(overall.isVisibleToEmployee());
+        verify(feedbackRepository).findByEvaluationId(MANAGER_ID);
+        verify(feedbackRepository, never()).findByEvaluationId(SELF_ID);
+    }
+
+    @Test
+    void hrManagerWithSystemAdminPreviewsFromManagerEntry() {
+        givenRoles(RoleType.HR_MANAGER, RoleType.SYSTEM_ADMIN);
+        assertEquals(MANAGER_ID,
+                service.getPublishPreview(MANAGER_ID).managerEvaluationId());
+    }
+
+    @ParameterizedTest
+    @MethodSource("deniedRoles")
+    void roleWithoutHrManagerCannotPreview(Set<RoleType> roles) {
+        givenRoles(roles.toArray(RoleType[]::new));
+        assertError(EvaluationErrorCode.EVALUATION_ACCESS_DENIED,
+                () -> service.getPublishPreview(SELF_ID));
+    }
+
+    @Test
+    void previewMissingEvaluationIsReported() {
+        when(evaluationRepository.findById(99L)).thenReturn(Optional.empty());
+        assertError(EvaluationErrorCode.EVALUATION_NOT_FOUND,
+                () -> service.getPublishPreview(99L));
+    }
+
+    @Test
+    void previewFeedbackIdCanBePassedToExistingPublishContract() {
+        Long feedbackId = service.getPublishPreview(SELF_ID)
+                .managerFeedbacks().get(0).evaluationFeedbackId();
+
+        service.publish(SELF_ID, request(null, feedbackId));
+
+        verify(selectedManagerFeedback).setIsVisibleToEmployee(true);
+        verify(hiddenManagerFeedback).setIsVisibleToEmployee(false);
     }
 
     @Test
@@ -326,11 +389,15 @@ class EvaluationPublishServiceImplTest {
             EvaluationFeedback feedback,
             Long id,
             Long evaluationId,
+            Long evaluationItemId,
+            FeedbackType feedbackType,
             boolean visible,
             String content
     ) {
         lenient().when(feedback.getEvaluationFeedbackId()).thenReturn(id);
         lenient().when(feedback.getEvaluationId()).thenReturn(evaluationId);
+        lenient().when(feedback.getEvaluationItemId()).thenReturn(evaluationItemId);
+        lenient().when(feedback.getFeedbackType()).thenReturn(feedbackType);
         lenient().when(feedback.getIsVisibleToEmployee()).thenReturn(visible);
         lenient().when(feedback.getFeedbackContent()).thenReturn(content);
     }
