@@ -11,6 +11,9 @@ public interface CourseModuleRepository extends JpaRepository<CourseModule, Long
 
     List<CourseModule> findAllByCourse_CourseIdOrderByModuleOrderAsc(Long courseId);
 
+    List<CourseModule> findAllByCourse_CourseIdAndActiveTrueOrderByModuleOrderAsc(
+        Long courseId);
+
     boolean existsByCourse_CourseIdAndRequiredTrueAndActiveTrue(Long courseId);
 
     boolean existsByCourse_CourseIdAndModuleOrder(Long courseId, int moduleOrder);
