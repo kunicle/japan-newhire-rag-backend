@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCode;
 import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCodeSpec;
+import com.teamproject.japan_newhire_rag_backend.document.validation.InvalidTxtDocumentException;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -95,6 +96,16 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.message").value("Invalid request"));
     }
 
+    @Test
+    void invalidTxtDocumentExceptionReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/test/errors/invalid-txt"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message")
+                        .value("TXT 파일만 업로드할 수 있습니다."));
+    }
+
     private void assertBusinessError(ErrorCode errorCode, int status) throws Exception {
         mockMvc.perform(get("/test/errors/business/{code}", errorCode.name()))
                 .andExpect(status().is(status))
@@ -124,6 +135,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/unexpected")
         void unexpected() {
             throw new RuntimeException("must not be exposed");
+        }
+
+        @GetMapping("/invalid-txt")
+        void invalidTxt() {
+            throw new InvalidTxtDocumentException("TXT 파일만 업로드할 수 있습니다.");
         }
     }
 
