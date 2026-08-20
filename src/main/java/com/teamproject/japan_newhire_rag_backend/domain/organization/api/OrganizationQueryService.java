@@ -8,6 +8,8 @@ public interface OrganizationQueryService {
 
     boolean isValidEmployee(Long employeeId);
 
+    boolean isValidDepartment(Long departmentId);
+
     List<Long> findValidEmployeeIdsByDepartmentIds(Collection<Long> departmentIds);
 
     List<Long> findValidEmployeeIdsByJobGradeIds(Collection<Long> jobGradeIds);

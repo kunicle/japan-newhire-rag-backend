@@ -1,27 +1,26 @@
 package com.teamproject.japan_newhire_rag_backend.domain.organization.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.teamproject.japan_newhire_rag_backend.domain.auth.entity.AppUser;
@@ -31,10 +30,12 @@ import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.Depa
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.Employee;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.JobGrade;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.ManagerRelation;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.DepartmentStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmployeeType;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationType;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.DepartmentRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.EmployeeRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.ManagerRelationRepository;
 
@@ -47,13 +48,17 @@ class OrganizationQueryServiceImplTest {
     @Mock
     private ManagerRelationRepository managerRelationRepository;
 
+    @Mock
+    private DepartmentRepository departmentRepository;
+
     private OrganizationQueryServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new OrganizationQueryServiceImpl(
                 employeeRepository,
-                managerRelationRepository);
+                managerRelationRepository,
+                departmentRepository);
     }
 
     @Test
@@ -84,6 +89,41 @@ class OrganizationQueryServiceImplTest {
         assertFalse(service.isValidEmployee(6L));
         assertFalse(service.isValidEmployee(999L));
         assertFalse(service.isValidEmployee(null));
+    }
+
+    @Test
+    void isValidDepartmentReturnsTrueForActiveNotDeletedDepartment() {
+        when(departmentRepository
+                .existsByDepartmentIdAndDepartmentStatusAndDeletedAtIsNull(
+                        10L,
+                        DepartmentStatus.ACTIVE))
+                .thenReturn(true);
+
+        assertTrue(service.isValidDepartment(10L));
+
+        verify(departmentRepository)
+                .existsByDepartmentIdAndDepartmentStatusAndDeletedAtIsNull(
+                        10L,
+                        DepartmentStatus.ACTIVE);
+    }
+
+    @Test
+    void isValidDepartmentReturnsFalseForInvalidOrMissingDepartment() {
+        when(departmentRepository
+                .existsByDepartmentIdAndDepartmentStatusAndDeletedAtIsNull(
+                        999L,
+                        DepartmentStatus.ACTIVE))
+                .thenReturn(false);
+
+        assertFalse(service.isValidDepartment(999L));
+        assertFalse(service.isValidDepartment(null));
+        assertFalse(service.isValidDepartment(0L));
+        assertFalse(service.isValidDepartment(-1L));
+
+        verify(departmentRepository)
+                .existsByDepartmentIdAndDepartmentStatusAndDeletedAtIsNull(
+                        999L,
+                        DepartmentStatus.ACTIVE);
     }
 
     @Test

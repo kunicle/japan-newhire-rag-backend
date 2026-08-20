@@ -1,6 +1,7 @@
 package com.teamproject.japan_newhire_rag_backend.domain.onboarding.entity;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 import com.teamproject.japan_newhire_rag_backend.common.entity.BaseEntity;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.enums.OnboardingCompletionStatus;
@@ -47,4 +48,59 @@ public class OnboardingProgress extends BaseEntity {
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
+
+    public static OnboardingProgress create(
+            OnboardingAssignment onboardingAssignment
+    ) {
+        Objects.requireNonNull(
+                onboardingAssignment,
+                "Onboarding assignment is required");
+
+        OnboardingProgress progress =
+                new OnboardingProgress();
+        progress.onboardingAssignment =
+                onboardingAssignment;
+        progress.completionStatus =
+                OnboardingCompletionStatus.NOT_STARTED;
+        progress.completionNote = null;
+        progress.completedAt = null;
+        return progress;
+    }
+
+    public boolean start() {
+        if (completionStatus
+                != OnboardingCompletionStatus.NOT_STARTED) {
+            return false;
+        }
+
+        completionStatus =
+                OnboardingCompletionStatus.IN_PROGRESS;
+        return true;
+    }
+
+    public boolean complete(
+            String completionNote,
+            LocalDateTime completionTime
+    ) {
+        Objects.requireNonNull(
+                completionTime,
+                "Completion time is required");
+
+        if (completionStatus
+                == OnboardingCompletionStatus.COMPLETED) {
+            return false;
+        }
+
+        if (completionStatus
+                != OnboardingCompletionStatus.IN_PROGRESS) {
+            throw new IllegalStateException(
+                    "Onboarding progress must be started before completion");
+        }
+
+        completionStatus =
+                OnboardingCompletionStatus.COMPLETED;
+        this.completionNote = completionNote;
+        completedAt = completionTime;
+        return true;
+    }
 }
