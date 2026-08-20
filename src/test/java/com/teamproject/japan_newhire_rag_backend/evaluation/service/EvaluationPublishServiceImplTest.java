@@ -40,9 +40,9 @@ import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessExcept
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserContext;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProvider;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.RoleType;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordCommand;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordService;
 import com.teamproject.japan_newhire_rag_backend.domain.system.audit.enums.AuditActionType;
-import com.teamproject.japan_newhire_rag_backend.domain.system.audit.service.internal.AuditLogRecordCommand;
-import com.teamproject.japan_newhire_rag_backend.domain.system.audit.service.internal.AuditLogRecordService;
 import com.teamproject.japan_newhire_rag_backend.evaluation.Evaluation;
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationCycle;
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationCycleRepository;

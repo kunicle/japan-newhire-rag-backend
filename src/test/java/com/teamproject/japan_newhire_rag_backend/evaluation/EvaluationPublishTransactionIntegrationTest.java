@@ -38,9 +38,9 @@ import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.JobG
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.DepartmentStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmployeeType;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordCommand;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordService;
 import com.teamproject.japan_newhire_rag_backend.domain.system.audit.enums.AuditActionType;
-import com.teamproject.japan_newhire_rag_backend.domain.system.audit.service.internal.AuditLogRecordCommand;
-import com.teamproject.japan_newhire_rag_backend.domain.system.audit.service.internal.AuditLogRecordService;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationPublishRequest;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationPublishResponse;
 import com.teamproject.japan_newhire_rag_backend.evaluation.service.EvaluationPublishService;
