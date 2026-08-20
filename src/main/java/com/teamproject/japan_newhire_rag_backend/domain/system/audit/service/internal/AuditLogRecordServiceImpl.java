@@ -9,6 +9,8 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordCommand;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordService;
 import com.teamproject.japan_newhire_rag_backend.domain.system.audit.entity.AuditLog;
 import com.teamproject.japan_newhire_rag_backend.domain.system.audit.enums.AuditActionType;
 import com.teamproject.japan_newhire_rag_backend.domain.system.audit.repository.AuditLogRepository;
@@ -16,13 +18,13 @@ import com.teamproject.japan_newhire_rag_backend.domain.system.audit.repository.
 import tools.jackson.databind.ObjectMapper;
 
 @Service
-public class AuditLogRecordService {
+public class AuditLogRecordServiceImpl implements AuditLogRecordService {
 
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
-    public AuditLogRecordService(
+    public AuditLogRecordServiceImpl(
             AuditLogRepository auditLogRepository,
             ObjectMapper objectMapper,
             Clock clock
@@ -32,6 +34,7 @@ public class AuditLogRecordService {
         this.clock = clock;
     }
 
+    @Override
     @Transactional
     public void record(AuditLogRecordCommand command) {
         validate(command);

@@ -44,8 +44,8 @@ import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.EmployeeRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.JobGradeRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.system.audit.enums.AuditActionType;
-import com.teamproject.japan_newhire_rag_backend.domain.system.audit.service.internal.AuditLogRecordCommand;
-import com.teamproject.japan_newhire_rag_backend.domain.system.audit.service.internal.AuditLogRecordService;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordCommand;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordService;
 
 class UserAdministrationServiceTest {
 

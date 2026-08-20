@@ -1,4 +1,4 @@
-package com.teamproject.japan_newhire_rag_backend.domain.system.audit.service.internal;
+package com.teamproject.japan_newhire_rag_backend.domain.system.audit.api;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
