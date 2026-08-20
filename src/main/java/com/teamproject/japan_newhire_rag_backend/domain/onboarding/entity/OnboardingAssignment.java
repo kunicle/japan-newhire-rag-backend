@@ -1,6 +1,7 @@
 package com.teamproject.japan_newhire_rag_backend.domain.onboarding.entity;
 
 import java.time.LocalDate;
+import java.util.Objects;
 
 import com.teamproject.japan_newhire_rag_backend.common.entity.BaseEntity;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.enums.OnboardingAssignmentStatus;
@@ -54,5 +55,80 @@ public class OnboardingAssignment extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "assignment_status", nullable = false, length = 20)
-    private OnboardingAssignmentStatus assignmentStatus = OnboardingAssignmentStatus.ASSIGNED;
+    private OnboardingAssignmentStatus assignmentStatus =
+            OnboardingAssignmentStatus.ASSIGNED;
+
+    public static OnboardingAssignment create(
+            OnboardingTask onboardingTask,
+            Long employeeId,
+            Long assignedBy,
+            LocalDate assignedDate,
+            LocalDate dueDate
+    ) {
+        Objects.requireNonNull(
+                onboardingTask,
+                "Onboarding task is required");
+        Objects.requireNonNull(
+                employeeId,
+                "Employee ID is required");
+        Objects.requireNonNull(
+                assignedBy,
+                "Assigner ID is required");
+        Objects.requireNonNull(
+                assignedDate,
+                "Assigned date is required");
+        Objects.requireNonNull(
+                dueDate,
+                "Due date is required");
+
+        if (dueDate.isBefore(assignedDate)) {
+            throw new IllegalArgumentException(
+                    "Due date must not be before assigned date");
+        }
+
+        OnboardingAssignment assignment =
+                new OnboardingAssignment();
+        assignment.onboardingTask = onboardingTask;
+        assignment.employeeId = employeeId;
+        assignment.assignedBy = assignedBy;
+        assignment.assignedDate = assignedDate;
+        assignment.dueDate = dueDate;
+        assignment.assignmentStatus =
+                OnboardingAssignmentStatus.ASSIGNED;
+        return assignment;
+    }
+
+    public boolean cancel() {
+        if (assignmentStatus
+                == OnboardingAssignmentStatus.COMPLETED) {
+            throw new IllegalStateException(
+                    "Completed assignment cannot be cancelled");
+        }
+
+        if (assignmentStatus
+                == OnboardingAssignmentStatus.CANCELLED) {
+            return false;
+        }
+
+        assignmentStatus =
+                OnboardingAssignmentStatus.CANCELLED;
+        return true;
+    }
+
+    public boolean complete() {
+        if (assignmentStatus
+                == OnboardingAssignmentStatus.CANCELLED) {
+            throw new IllegalStateException(
+                    "Cancelled assignment cannot be completed");
+        }
+
+        if (assignmentStatus
+                == OnboardingAssignmentStatus.COMPLETED) {
+            return false;
+        }
+
+        assignmentStatus =
+                OnboardingAssignmentStatus.COMPLETED;
+        return true;
+    }
 }

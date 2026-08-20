@@ -15,10 +15,12 @@ import com.teamproject.japan_newhire_rag_backend.domain.organization.api.Employe
 import com.teamproject.japan_newhire_rag_backend.domain.organization.api.OrganizationQueryService;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.Employee;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.ManagerRelation;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.DepartmentStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmployeeType;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationType;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.DepartmentRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.EmployeeRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.ManagerRelationRepository;
 
@@ -28,13 +30,16 @@ public class OrganizationQueryServiceImpl implements OrganizationQueryService {
 
     private final EmployeeRepository employeeRepository;
     private final ManagerRelationRepository managerRelationRepository;
+    private final DepartmentRepository departmentRepository;
 
     public OrganizationQueryServiceImpl(
             EmployeeRepository employeeRepository,
-            ManagerRelationRepository managerRelationRepository
+            ManagerRelationRepository managerRelationRepository,
+            DepartmentRepository departmentRepository
     ) {
         this.employeeRepository = employeeRepository;
         this.managerRelationRepository = managerRelationRepository;
+        this.departmentRepository = departmentRepository;
     }
 
     @Override
@@ -46,6 +51,18 @@ public class OrganizationQueryServiceImpl implements OrganizationQueryService {
         return employeeRepository.findById(employeeId)
                 .filter(this::isValid)
                 .isPresent();
+    }
+
+    @Override
+    public boolean isValidDepartment(Long departmentId) {
+        if (departmentId == null || departmentId <= 0) {
+            return false;
+        }
+
+        return departmentRepository
+                .existsByDepartmentIdAndDepartmentStatusAndDeletedAtIsNull(
+                        departmentId,
+                        DepartmentStatus.ACTIVE);
     }
 
     @Override
