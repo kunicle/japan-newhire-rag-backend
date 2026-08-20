@@ -20,6 +20,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordCommand;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordService;
 import com.teamproject.japan_newhire_rag_backend.domain.system.audit.entity.AuditLog;
 import com.teamproject.japan_newhire_rag_backend.domain.system.audit.enums.AuditActionType;
 import com.teamproject.japan_newhire_rag_backend.domain.system.audit.enums.AuditTargetType;
@@ -37,7 +39,7 @@ class AuditLogRecordServiceTest {
     @BeforeEach
     void setUp() {
         auditLogRepository = mock(AuditLogRepository.class);
-        service = new AuditLogRecordService(
+        service = new AuditLogRecordServiceImpl(
                 auditLogRepository,
                 JsonMapper.builder().build(),
                 Clock.fixed(NOW, ZoneOffset.UTC));

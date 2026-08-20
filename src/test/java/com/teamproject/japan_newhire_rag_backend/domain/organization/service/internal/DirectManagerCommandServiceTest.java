@@ -39,8 +39,8 @@ import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.Relat
 import com.teamproject.japan_newhire_rag_backend.domain.organization.error.OrganizationErrorCode;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.EmployeeRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.ManagerRelationRepository;
-import com.teamproject.japan_newhire_rag_backend.domain.system.audit.service.internal.AuditLogRecordCommand;
-import com.teamproject.japan_newhire_rag_backend.domain.system.audit.service.internal.AuditLogRecordService;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordCommand;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordService;
 
 @ExtendWith(MockitoExtension.class)
 class DirectManagerCommandServiceTest {
