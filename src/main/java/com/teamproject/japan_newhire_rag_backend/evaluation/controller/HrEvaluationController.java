@@ -23,6 +23,7 @@ import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationItemCr
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationItemResponse;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationItemUpdateRequest;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationProgressResponse;
+import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationPublishPreviewResponse;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationPublishRequest;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationPublishResponse;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationTemplateCreateRequest;
@@ -151,6 +152,11 @@ public class HrEvaluationController {
     @GetMapping("/evaluations/progress")
     public EvaluationProgressResponse getProgress(@RequestParam Long cycleId) {
         return progressService.getCycleProgress(cycleId);
+    }
+
+    @GetMapping("/evaluations/{id}/publish-preview")
+    public EvaluationPublishPreviewResponse getPublishPreview(@PathVariable Long id) {
+        return publishService.getPublishPreview(id);
     }
 
     @PatchMapping("/evaluations/{id}/publish")
