@@ -28,6 +28,11 @@ public interface CourseEnrollmentRepository
             Pageable pageable);
 
     @EntityGraph(attributePaths = "course")
+    Page<CourseEnrollment> findAllByEmployeeIdIn(
+        Collection<Long> employeeIds,
+        Pageable pageable);
+
+    @EntityGraph(attributePaths = "course")
     Optional<CourseEnrollment> findByCourseEnrollmentId(
             Long courseEnrollmentId);
 }
