@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,9 +32,14 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
+import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCode;
+import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessException;
 import com.teamproject.japan_newhire_rag_backend.common.exception.GlobalExceptionHandler;
+import com.teamproject.japan_newhire_rag_backend.document.processing.entity.DocumentProcessingJob;
 import com.teamproject.japan_newhire_rag_backend.document.processing.service.DocumentProcessingJobQueryService;
 import com.teamproject.japan_newhire_rag_backend.document.processing.service.DocumentProcessingJobStatus;
+import com.teamproject.japan_newhire_rag_backend.document.processing.service.DocumentProcessingRetryService;
+import com.teamproject.japan_newhire_rag_backend.document.version.entity.DocumentVersion;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.config.SecurityConfig;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.RoleType;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.security.JwtAuthenticationFilter;
@@ -62,6 +68,7 @@ class DocumentProcessingJobControllerTest {
 
     @Autowired WebApplicationContext applicationContext;
     @Autowired DocumentProcessingJobQueryService queryService;
+    @Autowired DocumentProcessingRetryService retryService;
     @Autowired AccessTokenService accessTokenService;
     @Autowired InternalJwtAuthenticationQueryService authenticationQueryService;
 
@@ -69,7 +76,7 @@ class DocumentProcessingJobControllerTest {
 
     @BeforeEach
     void setUp() {
-        reset(queryService, accessTokenService, authenticationQueryService);
+        reset(retryService, queryService, accessTokenService, authenticationQueryService);
         SecurityContextHolder.clearContext();
         mockMvc = MockMvcBuilders.webAppContextSetup(applicationContext)
                 .apply(springSecurity())
@@ -141,6 +148,75 @@ class DocumentProcessingJobControllerTest {
         verifyNoInteractions(queryService);
     }
 
+    @Test
+    void hrManagerCanRetryFailedProcessingJob() throws Exception {
+        authenticateAs(RoleType.HR_MANAGER);
+        DocumentProcessingJob result = retryResult("COMPLETED", null);
+        when(retryService.retry(1L)).thenReturn(result);
+
+        mockMvc.perform(authenticatedRetryRequest())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.documentProcessingJobId").value(401))
+                .andExpect(jsonPath("$.documentVersionId").value(201))
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.failureReason").value(nullValue()))
+                .andExpect(jsonPath("$.createdAt").value("2026-08-20T10:00:00"));
+
+        verify(retryService).retry(1L);
+    }
+
+    @Test
+    void employeeCannotRetryProcessingJob() throws Exception {
+        authenticateAs(RoleType.EMPLOYEE);
+
+        mockMvc.perform(authenticatedRetryRequest())
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(retryService);
+    }
+
+    @Test
+    void systemAdminCannotRetryProcessingJob() throws Exception {
+        authenticateAs(RoleType.SYSTEM_ADMIN);
+
+        mockMvc.perform(authenticatedRetryRequest())
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(retryService);
+    }
+
+    @Test
+    void unauthenticatedRetryIsUnauthorized() throws Exception {
+        mockMvc.perform(retryRequest())
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(retryService);
+    }
+
+    @Test
+    void missingProcessingJobReturnsNotFound() throws Exception {
+        authenticateAs(RoleType.HR_MANAGER);
+        when(retryService.retry(1L)).thenThrow(new BusinessException(
+                ErrorCode.RESOURCE_NOT_FOUND,
+                "처리 작업을 찾을 수 없습니다."));
+
+        mockMvc.perform(authenticatedRetryRequest())
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    void invalidRetryStateReturnsConflict() throws Exception {
+        authenticateAs(RoleType.HR_MANAGER);
+        when(retryService.retry(1L)).thenThrow(new BusinessException(
+                ErrorCode.CONFLICT,
+                "최신 처리 작업만 재시도할 수 있습니다."));
+
+        mockMvc.perform(authenticatedRetryRequest())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CONFLICT"));
+    }
+
     private MockHttpServletRequestBuilder authenticatedRequest() {
         return request().header("Authorization", "Bearer " + ACCESS_TOKEN);
     }
@@ -149,10 +225,30 @@ class DocumentProcessingJobControllerTest {
         return get("/api/hr/document-processing-jobs");
     }
 
+    private MockHttpServletRequestBuilder authenticatedRetryRequest() {
+        return retryRequest().header("Authorization", "Bearer " + ACCESS_TOKEN);
+    }
+
+    private MockHttpServletRequestBuilder retryRequest() {
+        return post("/api/hr/document-processing-jobs/1/retry");
+    }
+
     private void authenticateAs(RoleType role) {
         when(accessTokenService.validateAndExtractAppUserId(ACCESS_TOKEN)).thenReturn(77L);
         when(authenticationQueryService.load(77L))
                 .thenReturn(new JwtAuthenticationUser(77L, Set.of(role)));
+    }
+
+    private DocumentProcessingJob retryResult(String status, String failureReason) {
+        DocumentVersion version = mock(DocumentVersion.class);
+        when(version.getDocumentVersionId()).thenReturn(201L);
+        DocumentProcessingJob job = mock(DocumentProcessingJob.class);
+        when(job.getDocumentProcessingJobId()).thenReturn(401L);
+        when(job.getDocumentVersion()).thenReturn(version);
+        when(job.getProcessingStatus()).thenReturn(status);
+        when(job.getFailureReason()).thenReturn(failureReason);
+        when(job.getCreatedAt()).thenReturn(LocalDateTime.of(2026, 8, 20, 10, 0));
+        return job;
     }
 
     @Configuration
@@ -169,6 +265,9 @@ class DocumentProcessingJobControllerTest {
         @Bean ObjectMapper objectMapper() { return JsonMapper.builder().build(); }
         @Bean DocumentProcessingJobQueryService queryService() {
             return mock(DocumentProcessingJobQueryService.class);
+        }
+        @Bean DocumentProcessingRetryService retryService() {
+            return mock(DocumentProcessingRetryService.class);
         }
         @Bean AccessTokenService accessTokenService() { return mock(AccessTokenService.class); }
         @Bean InternalJwtAuthenticationQueryService authenticationQueryService() {

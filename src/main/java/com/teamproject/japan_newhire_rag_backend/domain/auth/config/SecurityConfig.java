@@ -105,6 +105,10 @@ public class SecurityConfig {
                                 HttpMethod.GET,
                                 "/api/hr/document-processing-jobs")
                         .hasRole("HR_MANAGER")
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/hr/document-processing-jobs/*/retry")
+                        .hasRole("HR_MANAGER")
                         .anyRequest()
                         .hasAnyRole(APPLICATION_ROLES))
                 .addFilterBefore(
