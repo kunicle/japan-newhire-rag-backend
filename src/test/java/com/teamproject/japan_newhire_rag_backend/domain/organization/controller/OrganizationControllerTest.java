@@ -39,6 +39,8 @@ import com.teamproject.japan_newhire_rag_backend.domain.auth.token.AccessTokenSe
 import com.teamproject.japan_newhire_rag_backend.domain.organization.controller.dto.OrganizationDepartmentResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.controller.dto.OrganizationEmployeeResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.controller.dto.OrganizationResponse;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.JobGrade;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal.JobGradeQueryService;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal.OrganizationTreeQueryService;
 
 import tools.jackson.databind.ObjectMapper;
@@ -60,6 +62,7 @@ class OrganizationControllerTest {
 
     @Autowired WebApplicationContext applicationContext;
     @Autowired OrganizationTreeQueryService organizationTreeQueryService;
+    @Autowired JobGradeQueryService jobGradeQueryService;
     @Autowired AccessTokenService accessTokenService;
     @Autowired InternalJwtAuthenticationQueryService authenticationQueryService;
 
@@ -67,7 +70,11 @@ class OrganizationControllerTest {
 
     @BeforeEach
     void setUp() {
-        reset(organizationTreeQueryService, accessTokenService, authenticationQueryService);
+        reset(
+                organizationTreeQueryService,
+                jobGradeQueryService,
+                accessTokenService,
+                authenticationQueryService);
         SecurityContextHolder.clearContext();
         mockMvc = MockMvcBuilders.webAppContextSetup(applicationContext)
                 .apply(springSecurity())
@@ -101,6 +108,35 @@ class OrganizationControllerTest {
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }
 
+    @Test
+    void authenticatedEmployeeCanReadActiveJobGrades() throws Exception {
+        JobGrade jobGrade = mock(JobGrade.class);
+        when(jobGrade.getJobGradeId()).thenReturn(101L);
+        when(jobGrade.getGradeCode()).thenReturn("DEV-G1");
+        when(jobGrade.getGradeName()).thenReturn("Junior");
+        when(jobGrade.getGradeLevel()).thenReturn(1);
+        when(accessTokenService.validateAndExtractAppUserId(ACCESS_TOKEN)).thenReturn(1L);
+        when(authenticationQueryService.load(1L))
+                .thenReturn(new JwtAuthenticationUser(1L, Set.of(RoleType.EMPLOYEE)));
+        when(jobGradeQueryService.getActiveJobGrades()).thenReturn(List.of(jobGrade));
+
+        mockMvc.perform(get("/api/organization/job-grades")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].jobGradeId").value(101))
+                .andExpect(jsonPath("$[0].jobGradeCode").value("DEV-G1"))
+                .andExpect(jsonPath("$[0].jobGradeName").value("Junior"))
+                .andExpect(jsonPath("$[0].jobGradeLevel").value(1))
+                .andExpect(jsonPath("$[0].isActive").doesNotExist());
+    }
+
+    @Test
+    void anonymousJobGradeRequestIsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/organization/job-grades"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
     private OrganizationResponse response() {
         OrganizationEmployeeResponse employee = new OrganizationEmployeeResponse(
                 10L, "E-001", "Kim", 100L, 200L, "Junior", 1,
@@ -125,6 +161,9 @@ class OrganizationControllerTest {
         @Bean ObjectMapper objectMapper() { return JsonMapper.builder().build(); }
         @Bean OrganizationTreeQueryService organizationTreeQueryService() {
             return mock(OrganizationTreeQueryService.class);
+        }
+        @Bean JobGradeQueryService jobGradeQueryService() {
+            return mock(JobGradeQueryService.class);
         }
         @Bean AccessTokenService accessTokenService() { return mock(AccessTokenService.class); }
         @Bean InternalJwtAuthenticationQueryService authenticationQueryService() {
