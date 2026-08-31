@@ -91,6 +91,8 @@ public class SecurityConfig {
                         .hasRole("HR_MANAGER")
                         .requestMatchers(HttpMethod.POST, "/api/documents")
                         .hasAnyRole("HR_MANAGER", "SYSTEM_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/documents/categories")
+                        .hasAnyRole("HR_MANAGER", "SYSTEM_ADMIN")
                         .requestMatchers(
                                 HttpMethod.PATCH,
                                 "/api/documents/*/versions/*/publish")
