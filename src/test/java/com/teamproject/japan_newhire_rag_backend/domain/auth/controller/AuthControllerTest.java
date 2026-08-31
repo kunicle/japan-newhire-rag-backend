@@ -10,6 +10,7 @@ import static org.springframework.security.test.web.servlet.setup.SecurityMockMv
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -137,7 +138,9 @@ class AuthControllerTest {
                                 org.hamcrest.Matchers.containsString("SameSite=Lax"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
                         .header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(
-                                org.hamcrest.Matchers.containsString("XSRF-TOKEN="))));
+                                org.hamcrest.Matchers.containsString("XSRF-TOKEN="))))
+                .andExpect(cookie().exists("XSRF-TOKEN"))
+                .andExpect(cookie().path("XSRF-TOKEN", "/"));
     }
 
     @Test
