@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -178,6 +179,88 @@ class AuthIntegrationTest {
     }
 
     @Test
+    void csrfCookieSurvivesMeAndTwoRefreshRotations() throws Exception {
+        TestUser user = createActiveUser("csrf-lifecycle");
+        CsrfSession loginSession = loginCsrfSession(user.email());
+
+        MvcResult profileResult = mockMvc.perform(get("/api/me")
+                        .header("Authorization", "Bearer " + loginSession.accessToken())
+                        .cookie(xsrfCookie(loginSession.xsrfToken())))
+                .andExpect(status().isOk())
+                .andReturn();
+        String xsrfAfterProfile = effectiveXsrfToken(
+                profileResult,
+                loginSession.xsrfToken());
+
+        RefreshExchange firstRefresh = refreshWithCsrf(
+                loginSession.refreshToken(),
+                xsrfAfterProfile);
+        assertNotEquals(loginSession.accessToken(), firstRefresh.accessToken());
+        assertNotEquals(loginSession.refreshToken(), firstRefresh.refreshToken());
+
+        RefreshExchange secondRefresh = refreshWithCsrf(
+                firstRefresh.refreshToken(),
+                firstRefresh.xsrfToken());
+        assertNotEquals(firstRefresh.accessToken(), secondRefresh.accessToken());
+        assertNotEquals(firstRefresh.refreshToken(), secondRefresh.refreshToken());
+    }
+
+    @Test
+    void loginIssuesExactlyOneNonEmptyXsrfCookie() throws Exception {
+        TestUser user = createActiveUser("csrf-single-cookie");
+
+        MvcResult result = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody(user.email(), RAW_PASSWORD, DEVICE_INFO)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        long xsrfSetCookieCount = result.getResponse().getHeaders("Set-Cookie").stream()
+                .filter(header -> header.startsWith("XSRF-TOKEN="))
+                .count();
+        long refreshSetCookieCount = result.getResponse().getHeaders("Set-Cookie").stream()
+                .filter(header -> header.startsWith("refresh_token="))
+                .count();
+        Cookie xsrfCookie = result.getResponse().getCookie("XSRF-TOKEN");
+        String refreshToken = refreshTokenFromSetCookie(result);
+
+        assertEquals(1, xsrfSetCookieCount);
+        assertEquals(1, refreshSetCookieCount);
+        assertNotNull(xsrfCookie);
+        assertFalse(xsrfCookie.getValue().isBlank());
+        assertFalse(xsrfCookie.isHttpOnly());
+        assertEquals("/", xsrfCookie.getPath());
+        assertFalse(refreshToken.isBlank());
+    }
+
+    @Test
+    void refreshWithXsrfCookieButWithoutHeaderIsForbidden() throws Exception {
+        TestUser user = createActiveUser("csrf-missing-header");
+        CsrfSession session = loginCsrfSession(user.email());
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(
+                                refreshCookie(session.refreshToken()),
+                                xsrfCookie(session.xsrfToken())))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void refreshWithWrongXsrfHeaderIsForbidden() throws Exception {
+        TestUser user = createActiveUser("csrf-wrong-header");
+        CsrfSession session = loginCsrfSession(user.email());
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(
+                                refreshCookie(session.refreshToken()),
+                                xsrfCookie(session.xsrfToken()))
+                        .header("X-XSRF-TOKEN", "wrong-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
     void wrongPasswordPersistsFailureWithoutIssuingRefreshToken() throws Exception {
         TestUser user = createActiveUser("failure");
 
@@ -288,6 +371,72 @@ class AuthIntegrationTest {
         return tokenPair(result);
     }
 
+    private CsrfSession loginCsrfSession(String email) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody(email, RAW_PASSWORD, DEVICE_INFO)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").doesNotExist())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsByteArray());
+        Cookie xsrfCookie = result.getResponse().getCookie("XSRF-TOKEN");
+        assertNotNull(xsrfCookie);
+        assertFalse(xsrfCookie.isHttpOnly());
+        assertEquals("/", xsrfCookie.getPath());
+        assertFalse(xsrfCookie.getValue().isBlank());
+
+        String refreshToken = refreshTokenFromSetCookie(result);
+        assertFalse(refreshToken.isBlank());
+        return new CsrfSession(
+                body.get("accessToken").asText(),
+                refreshToken,
+                xsrfCookie.getValue());
+    }
+
+    private RefreshExchange refreshWithCsrf(
+            String refreshToken,
+            String xsrfToken
+    ) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(refreshCookie(refreshToken), xsrfCookie(xsrfToken))
+                        .header("X-XSRF-TOKEN", xsrfToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").doesNotExist())
+                .andReturn();
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsByteArray());
+        return new RefreshExchange(
+                body.get("accessToken").asText(),
+                refreshTokenFromSetCookie(result),
+                effectiveXsrfToken(result, xsrfToken));
+    }
+
+    private String effectiveXsrfToken(MvcResult result, String existingToken) {
+        assertNoXsrfDeletionCookie(result);
+        Cookie responseCookie = result.getResponse().getCookie("XSRF-TOKEN");
+        if (responseCookie == null) {
+            return existingToken;
+        }
+
+        assertFalse(responseCookie.getValue().isBlank());
+        assertNotEquals(0, responseCookie.getMaxAge());
+        return responseCookie.getValue();
+    }
+
+    private void assertNoXsrfDeletionCookie(MvcResult result) {
+        for (String header : result.getResponse().getHeaders("Set-Cookie")) {
+            if (!header.startsWith("XSRF-TOKEN=")) {
+                continue;
+            }
+            assertFalse(header.startsWith("XSRF-TOKEN=;"));
+            assertFalse(header.contains("Max-Age=0"));
+            assertFalse(header.contains("Expires=Thu, 01 Jan 1970"));
+            assertFalse(header.contains("Expires=Thu, 1 Jan 1970"));
+        }
+    }
+
     private TokenPair refresh(String rawRefreshToken) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/refresh")
                         .with(csrf())
@@ -352,15 +501,23 @@ class AuthIntegrationTest {
         return new Cookie("refresh_token", refreshToken);
     }
 
+    private Cookie xsrfCookie(String xsrfToken) {
+        return new Cookie("XSRF-TOKEN", xsrfToken);
+    }
+
     private String refreshTokenFromSetCookie(MvcResult result) {
-        String setCookie = result.getResponse().getHeader("Set-Cookie");
-        assertNotNull(setCookie);
-        assertTrue(setCookie.contains("HttpOnly"));
-        assertTrue(setCookie.contains("Path=/api/auth"));
-        assertTrue(setCookie.contains("SameSite=Lax"));
         String prefix = "refresh_token=";
-        int valueStart = setCookie.indexOf(prefix) + prefix.length();
-        return setCookie.substring(valueStart, setCookie.indexOf(';', valueStart));
+        for (String setCookie : result.getResponse().getHeaders("Set-Cookie")) {
+            if (!setCookie.startsWith(prefix)) {
+                continue;
+            }
+            assertTrue(setCookie.contains("HttpOnly"));
+            assertTrue(setCookie.contains("Path=/api/auth"));
+            assertTrue(setCookie.contains("SameSite=Lax"));
+            int valueStart = prefix.length();
+            return setCookie.substring(valueStart, setCookie.indexOf(';', valueStart));
+        }
+        throw new AssertionError("refresh_token cookie is missing");
     }
 
     private record TestUser(
@@ -372,6 +529,20 @@ class AuthIntegrationTest {
     }
 
     private record TokenPair(String accessToken, String refreshToken) {
+    }
+
+    private record CsrfSession(
+            String accessToken,
+            String refreshToken,
+            String xsrfToken
+    ) {
+    }
+
+    private record RefreshExchange(
+            String accessToken,
+            String refreshToken,
+            String xsrfToken
+    ) {
     }
 
     private record RefreshRow(

@@ -15,6 +15,7 @@ import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.session.NullAuthenticatedSessionStrategy;
 import org.springframework.security.web.savedrequest.NullRequestCache;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -66,7 +67,9 @@ public class SecurityConfig {
                                 PathPatternRequestMatcher.pathPattern(
                                         HttpMethod.POST, "/api/auth/refresh"),
                                 PathPatternRequestMatcher.pathPattern(
-                                        HttpMethod.POST, "/api/auth/logout"))))
+                                        HttpMethod.POST, "/api/auth/logout")))
+                        .sessionAuthenticationStrategy(
+                                new NullAuthenticatedSessionStrategy()))
                 .cors(cors -> { })
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
