@@ -13,4 +13,7 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
             String documentStatus);
 
     List<Document> findAllByOrderByCreatedAtDesc();
+
+    List<Document> findByDocumentStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+            String documentStatus);
 }

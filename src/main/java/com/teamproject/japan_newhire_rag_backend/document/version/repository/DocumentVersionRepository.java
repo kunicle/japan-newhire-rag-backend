@@ -1,6 +1,7 @@
 package com.teamproject.japan_newhire_rag_backend.document.version.repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,4 +28,6 @@ public interface DocumentVersionRepository extends JpaRepository<DocumentVersion
                     String documentStatus,
                     String publicationStatus,
                     LocalDate today);
+
+    List<DocumentVersion> findByDocument_DocumentIdIn(Collection<Long> documentIds);
 }

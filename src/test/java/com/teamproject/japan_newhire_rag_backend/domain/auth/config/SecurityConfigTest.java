@@ -217,6 +217,30 @@ class SecurityConfigTest {
                 .andExpect(content().string("protected-post"));
     }
 
+    @Test
+    void employeeIsForbiddenByDocumentManagementGetMatchers() throws Exception {
+        stubJwt("employee-token", Set.of(RoleType.EMPLOYEE));
+
+        mockMvc.perform(get("/api/documents")
+                        .header("Authorization", "Bearer employee-token"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/documents/1")
+                        .header("Authorization", "Bearer employee-token"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void hrManagerPassesDocumentManagementGetMatchers() throws Exception {
+        stubJwt("hr-token", Set.of(RoleType.HR_MANAGER));
+
+        mockMvc.perform(get("/api/documents")
+                        .header("Authorization", "Bearer hr-token"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/documents/1")
+                        .header("Authorization", "Bearer hr-token"))
+                .andExpect(status().isOk());
+    }
+
     private void stubJwt(String token, Set<RoleType> roles) {
         when(accessTokenService.validateAndExtractAppUserId(token)).thenReturn(1L);
         when(authenticationQueryService.load(1L))
@@ -282,6 +306,11 @@ class SecurityConfigTest {
         @GetMapping("/test/protected")
         String protectedEndpoint() {
             return "protected";
+        }
+
+        @GetMapping({"/api/documents", "/api/documents/{documentId}"})
+        String documentManagement() {
+            return "documents";
         }
 
         @PostMapping("/test/protected")
