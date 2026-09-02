@@ -187,19 +187,31 @@ class ManagerEvaluationServiceImplTest {
     }
 
     @Test
-    void plannedAndClosedReadAreRejected() {
+    void plannedAndClosedReadSucceed() {
         when(cycle.getStartDate()).thenReturn(TODAY.plusDays(1));
-        assertNotWritable(() -> service.getMyManagerEvaluation(EVALUATION_ID));
+        ManagerEvaluationResponse planned = service.getMyManagerEvaluation(EVALUATION_ID);
+        assertEquals(EvaluationCycleStatus.PLANNED, planned.currentCycleStatus());
+
         when(cycle.getStartDate()).thenReturn(TODAY.minusDays(2));
         when(cycle.getEndDate()).thenReturn(TODAY.minusDays(1));
-        assertNotWritable(() -> service.getMyManagerEvaluation(EVALUATION_ID));
+        ManagerEvaluationResponse closed = service.getMyManagerEvaluation(EVALUATION_ID);
+        assertEquals(EvaluationCycleStatus.CLOSED, closed.currentCycleStatus());
     }
 
     @ParameterizedTest
     @EnumSource(value = EvaluationStatus.class, names = {"SUBMITTED", "RETURNED", "PUBLISHED"})
-    void nonDraftReadAndSaveAreRejected(EvaluationStatus status) {
+    void nonDraftReadSucceeds(EvaluationStatus status) {
         when(evaluation.getEvaluationStatus()).thenReturn(status);
-        assertNotWritable(() -> service.getMyManagerEvaluation(EVALUATION_ID));
+
+        ManagerEvaluationResponse result = service.getMyManagerEvaluation(EVALUATION_ID);
+
+        assertEquals(status, result.evaluationStatus());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = EvaluationStatus.class, names = {"SUBMITTED", "RETURNED", "PUBLISHED"})
+    void nonDraftSaveIsRejected(EvaluationStatus status) {
+        when(evaluation.getEvaluationStatus()).thenReturn(status);
         assertNotWritable(() -> service.saveDraft(EVALUATION_ID, request(null, null)));
     }
 

@@ -102,7 +102,6 @@ public class ManagerEvaluationServiceImpl implements ManagerEvaluationService {
         Evaluation evaluation = findOwnedManagerEvaluation(evaluationId, user.employeeId());
         requireCurrentDirectManager(evaluation, user.employeeId());
         EvaluationCycle cycle = findCycle(evaluation.getEvaluationCycleId());
-        requireWritable(evaluation, cycle);
         return buildResponse(evaluation, cycle);
     }
 
