@@ -97,6 +97,17 @@ class HrEvaluationControllerTest {
     }
 
     @Test
+    void listsEmptyEvaluationCycles() throws Exception {
+        when(cycleService.getCycles()).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/hr/evaluation-cycles"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("[]"));
+
+        verify(cycleService).getCycles();
+    }
+
+    @Test
     void mapsTemplateAndItemEndpoints() throws Exception {
         mockMvc.perform(post("/api/hr/evaluation-templates")
                         .contentType(MediaType.APPLICATION_JSON)

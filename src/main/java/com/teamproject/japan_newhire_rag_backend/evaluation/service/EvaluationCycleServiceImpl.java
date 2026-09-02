@@ -2,6 +2,7 @@ package com.teamproject.japan_newhire_rag_backend.evaluation.service;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Objects;
 
 import org.springframework.stereotype.Service;
@@ -61,6 +62,17 @@ public class EvaluationCycleServiceImpl implements EvaluationCycleService {
     public EvaluationCycleResponse getById(Long evaluationCycleId) {
         requireHrManager();
         return toResponse(findCycle(evaluationCycleId));
+    }
+
+    @Override
+    public List<EvaluationCycleResponse> getCycles() {
+        requireHrManager();
+
+        return evaluationCycleRepository
+                .findAllByDeletedAtIsNullOrderByStartDateDescEvaluationCycleIdDesc()
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Override

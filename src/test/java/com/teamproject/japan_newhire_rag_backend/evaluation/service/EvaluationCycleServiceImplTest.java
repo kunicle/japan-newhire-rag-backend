@@ -13,6 +13,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -95,6 +96,63 @@ class EvaluationCycleServiceImplTest {
         assertError(
                 EvaluationErrorCode.EVALUATION_ACCESS_DENIED,
                 () -> service.create(validCreateRequest()));
+    }
+
+    @Test
+    void hrManagerListsCyclesInRepositoryOrderWithLiveStatuses() {
+        givenRoles(RoleType.HR_MANAGER);
+        EvaluationCycle planned = mock(EvaluationCycle.class);
+        when(planned.getCycleName()).thenReturn("Planned");
+        when(planned.getStartDate()).thenReturn(TODAY.plusDays(1));
+        when(planned.getEndDate()).thenReturn(TODAY.plusDays(10));
+        EvaluationCycle closed = mock(EvaluationCycle.class);
+        when(closed.getCycleName()).thenReturn("Closed");
+        when(closed.getStartDate()).thenReturn(TODAY.minusDays(10));
+        when(closed.getEndDate()).thenReturn(TODAY.minusDays(1));
+        when(evaluationCycleRepository
+                .findAllByDeletedAtIsNullOrderByStartDateDescEvaluationCycleIdDesc())
+                .thenReturn(List.of(planned, closed));
+
+        List<EvaluationCycleResponse> result = service.getCycles();
+
+        assertEquals(2, result.size());
+        assertEquals(List.of("Planned", "Closed"),
+                result.stream().map(EvaluationCycleResponse::cycleName).toList());
+        assertEquals(EvaluationCycleStatus.PLANNED, result.get(0).cycleStatus());
+        assertEquals(EvaluationCycleStatus.CLOSED, result.get(1).cycleStatus());
+        verify(evaluationCycleRepository)
+                .findAllByDeletedAtIsNullOrderByStartDateDescEvaluationCycleIdDesc();
+        verify(evaluationCycleRepository, never()).findAll();
+    }
+
+    @Test
+    void hrManagerListsEmptyCycles() {
+        givenRoles(RoleType.HR_MANAGER);
+        when(evaluationCycleRepository
+                .findAllByDeletedAtIsNullOrderByStartDateDescEvaluationCycleIdDesc())
+                .thenReturn(List.of());
+
+        List<EvaluationCycleResponse> result = service.getCycles();
+
+        assertEquals(List.of(), result);
+    }
+
+    @Test
+    void employeeCannotListCycles() {
+        givenRoles(RoleType.EMPLOYEE);
+
+        assertError(EvaluationErrorCode.EVALUATION_ACCESS_DENIED, service::getCycles);
+        verify(evaluationCycleRepository, never())
+                .findAllByDeletedAtIsNullOrderByStartDateDescEvaluationCycleIdDesc();
+    }
+
+    @Test
+    void systemAdminAloneCannotListCycles() {
+        givenRoles(RoleType.SYSTEM_ADMIN);
+
+        assertError(EvaluationErrorCode.EVALUATION_ACCESS_DENIED, service::getCycles);
+        verify(evaluationCycleRepository, never())
+                .findAllByDeletedAtIsNullOrderByStartDateDescEvaluationCycleIdDesc();
     }
 
     @Test

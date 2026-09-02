@@ -71,6 +71,11 @@ public class HrEvaluationController {
         return cycleService.create(request);
     }
 
+    @GetMapping("/evaluation-cycles")
+    public List<EvaluationCycleResponse> getCycles() {
+        return cycleService.getCycles();
+    }
+
     @GetMapping("/evaluation-cycles/{cycleId}")
     public EvaluationCycleResponse getCycle(@PathVariable Long cycleId) {
         return cycleService.getById(cycleId);
