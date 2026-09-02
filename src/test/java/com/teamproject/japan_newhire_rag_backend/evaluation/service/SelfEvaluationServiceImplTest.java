@@ -42,6 +42,7 @@ import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.RoleType;
 import com.teamproject.japan_newhire_rag_backend.evaluation.Evaluation;
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationCycle;
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationCycleRepository;
+import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationCycleStatus;
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationFeedback;
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationFeedbackRepository;
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationItem;
@@ -52,6 +53,7 @@ import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationScoreRepos
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationStatus;
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationType;
 import com.teamproject.japan_newhire_rag_backend.evaluation.FeedbackType;
+import com.teamproject.japan_newhire_rag_backend.evaluation.dto.MyEvaluationSummaryResponse;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.SelfEvaluationDraftRequest;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.SelfEvaluationItemDraftRequest;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.SelfEvaluationResponse;
@@ -87,6 +89,108 @@ class SelfEvaluationServiceImplTest {
                 evaluationRepository, cycleRepository, itemRepository, scoreRepository,
                 feedbackRepository, currentUserProvider, CLOCK);
         givenDefaultState();
+    }
+
+    @Test
+    void mapsOwnedSelfEvaluationsAndUsesExactRepositoryFilter() {
+        Evaluation first = summaryEvaluation(100L, 20L, EvaluationStatus.DRAFT);
+        Evaluation second = summaryEvaluation(200L, 30L, EvaluationStatus.SUBMITTED);
+        EvaluationCycle firstCycle = summaryCycle(
+                "2026 상반기", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 6, 30));
+        EvaluationCycle secondCycle = summaryCycle(
+                "2026 하반기", LocalDate.of(2026, 7, 1), LocalDate.of(2026, 12, 31));
+        when(evaluationRepository.findByEvaluatorEmployeeIdAndEvaluationType(
+                EMPLOYEE_ID, EvaluationType.SELF)).thenReturn(List.of(first, second));
+        when(cycleRepository.findById(20L)).thenReturn(Optional.of(firstCycle));
+        when(cycleRepository.findById(30L)).thenReturn(Optional.of(secondCycle));
+
+        List<MyEvaluationSummaryResponse> responses = service.getMyEvaluations();
+
+        MyEvaluationSummaryResponse response = responses.get(0);
+        assertEquals(200L, response.evaluationId());
+        assertEquals(30L, response.evaluationCycleId());
+        assertEquals("2026 하반기", response.cycleName());
+        assertEquals(LocalDate.of(2026, 7, 1), response.cycleStartDate());
+        assertEquals(LocalDate.of(2026, 12, 31), response.cycleEndDate());
+        assertEquals(EvaluationStatus.SUBMITTED, response.evaluationStatus());
+        assertEquals(EvaluationCycleStatus.OPEN, response.currentCycleStatus());
+        verify(evaluationRepository).findByEvaluatorEmployeeIdAndEvaluationType(
+                EMPLOYEE_ID, EvaluationType.SELF);
+        verify(evaluationRepository, never()).findByEvaluatorEmployeeIdAndEvaluationType(
+                EMPLOYEE_ID, EvaluationType.MANAGER);
+    }
+
+    @Test
+    void returnsEmptyEvaluationList() {
+        when(evaluationRepository.findByEvaluatorEmployeeIdAndEvaluationType(
+                EMPLOYEE_ID, EvaluationType.SELF)).thenReturn(List.of());
+
+        assertEquals(List.of(), service.getMyEvaluations());
+    }
+
+    @Test
+    void ordersEvaluationsByCycleStartDateDescending() {
+        Evaluation older = summaryEvaluation(300L, 40L, EvaluationStatus.DRAFT);
+        Evaluation newer = summaryEvaluation(100L, 50L, EvaluationStatus.DRAFT);
+        EvaluationCycle olderCycle = summaryCycle(
+                "older", LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31));
+        EvaluationCycle newerCycle = summaryCycle(
+                "newer", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31));
+        when(evaluationRepository.findByEvaluatorEmployeeIdAndEvaluationType(
+                EMPLOYEE_ID, EvaluationType.SELF)).thenReturn(List.of(older, newer));
+        when(cycleRepository.findById(40L)).thenReturn(Optional.of(olderCycle));
+        when(cycleRepository.findById(50L)).thenReturn(Optional.of(newerCycle));
+
+        assertEquals(List.of(100L, 300L), service.getMyEvaluations().stream()
+                .map(MyEvaluationSummaryResponse::evaluationId).toList());
+    }
+
+    @Test
+    void ordersSameCycleStartDateByEvaluationIdDescending() {
+        Evaluation lowerId = summaryEvaluation(100L, 60L, EvaluationStatus.DRAFT);
+        Evaluation higherId = summaryEvaluation(200L, 70L, EvaluationStatus.DRAFT);
+        LocalDate startDate = LocalDate.of(2026, 1, 1);
+        EvaluationCycle firstCycle = summaryCycle(
+                "first", startDate, LocalDate.of(2026, 6, 30));
+        EvaluationCycle secondCycle = summaryCycle(
+                "second", startDate, LocalDate.of(2026, 12, 31));
+        when(evaluationRepository.findByEvaluatorEmployeeIdAndEvaluationType(
+                EMPLOYEE_ID, EvaluationType.SELF)).thenReturn(List.of(lowerId, higherId));
+        when(cycleRepository.findById(60L)).thenReturn(Optional.of(firstCycle));
+        when(cycleRepository.findById(70L)).thenReturn(Optional.of(secondCycle));
+
+        assertEquals(List.of(200L, 100L), service.getMyEvaluations().stream()
+                .map(MyEvaluationSummaryResponse::evaluationId).toList());
+    }
+
+    @Test
+    void evaluationSummariesReusePlannedOpenAndClosedCycleStatus() {
+        Evaluation planned = summaryEvaluation(1L, 80L, EvaluationStatus.DRAFT);
+        Evaluation open = summaryEvaluation(2L, 90L, EvaluationStatus.DRAFT);
+        Evaluation closed = summaryEvaluation(3L, 100L, EvaluationStatus.DRAFT);
+        EvaluationCycle plannedCycle = summaryCycle(
+                "planned", TODAY.plusDays(1), TODAY.plusDays(10));
+        EvaluationCycle openCycle = summaryCycle(
+                "open", TODAY.minusDays(1), TODAY.plusDays(1));
+        EvaluationCycle closedCycle = summaryCycle(
+                "closed", TODAY.minusDays(10), TODAY.minusDays(1));
+        when(evaluationRepository.findByEvaluatorEmployeeIdAndEvaluationType(
+                EMPLOYEE_ID, EvaluationType.SELF)).thenReturn(List.of(planned, open, closed));
+        when(cycleRepository.findById(80L)).thenReturn(Optional.of(plannedCycle));
+        when(cycleRepository.findById(90L)).thenReturn(Optional.of(openCycle));
+        when(cycleRepository.findById(100L)).thenReturn(Optional.of(closedCycle));
+
+        List<MyEvaluationSummaryResponse> responses = service.getMyEvaluations();
+
+        assertEquals(EvaluationCycleStatus.PLANNED, responses.stream()
+                .filter(response -> response.evaluationId().equals(1L))
+                .findFirst().orElseThrow().currentCycleStatus());
+        assertEquals(EvaluationCycleStatus.OPEN, responses.stream()
+                .filter(response -> response.evaluationId().equals(2L))
+                .findFirst().orElseThrow().currentCycleStatus());
+        assertEquals(EvaluationCycleStatus.CLOSED, responses.stream()
+                .filter(response -> response.evaluationId().equals(3L))
+                .findFirst().orElseThrow().currentCycleStatus());
     }
 
     @Test
@@ -438,6 +542,30 @@ class SelfEvaluationServiceImplTest {
     private void givenCurrentEmployee(Long employeeId) {
         lenient().when(currentUserProvider.getCurrentUser()).thenReturn(new CurrentUserContext(
                 10L, employeeId, Set.of(RoleType.EMPLOYEE), 20L, 1, null));
+    }
+
+    private Evaluation summaryEvaluation(
+            Long evaluationId,
+            Long evaluationCycleId,
+            EvaluationStatus status
+    ) {
+        Evaluation result = mock(Evaluation.class);
+        when(result.getEvaluationId()).thenReturn(evaluationId);
+        when(result.getEvaluationCycleId()).thenReturn(evaluationCycleId);
+        when(result.getEvaluationStatus()).thenReturn(status);
+        return result;
+    }
+
+    private EvaluationCycle summaryCycle(
+            String name,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+        EvaluationCycle result = mock(EvaluationCycle.class);
+        when(result.getCycleName()).thenReturn(name);
+        when(result.getStartDate()).thenReturn(startDate);
+        when(result.getEndDate()).thenReturn(endDate);
+        return result;
     }
 
     private EvaluationItem item(Long id, int order, boolean required) {

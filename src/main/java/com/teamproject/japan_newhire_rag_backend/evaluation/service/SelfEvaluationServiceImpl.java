@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -29,6 +30,7 @@ import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationScoreRepos
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationStatus;
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationType;
 import com.teamproject.japan_newhire_rag_backend.evaluation.FeedbackType;
+import com.teamproject.japan_newhire_rag_backend.evaluation.dto.MyEvaluationSummaryResponse;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.SelfEvaluationDraftRequest;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.SelfEvaluationItemDraftRequest;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.SelfEvaluationItemResponse;
@@ -66,6 +68,30 @@ public class SelfEvaluationServiceImpl implements SelfEvaluationService {
         this.feedbackRepository = feedbackRepository;
         this.currentUserProvider = currentUserProvider;
         this.clock = clock;
+    }
+
+    @Override
+    public List<MyEvaluationSummaryResponse> getMyEvaluations() {
+        Long employeeId = currentUserProvider.getCurrentUser().employeeId();
+        return evaluationRepository.findByEvaluatorEmployeeIdAndEvaluationType(
+                        employeeId, EvaluationType.SELF).stream()
+                .map(evaluation -> {
+                    EvaluationCycle cycle = findCycle(evaluation.getEvaluationCycleId());
+                    return new MyEvaluationSummaryResponse(
+                            evaluation.getEvaluationId(),
+                            evaluation.getEvaluationCycleId(),
+                            cycle.getCycleName(),
+                            cycle.getStartDate(),
+                            cycle.getEndDate(),
+                            evaluation.getEvaluationStatus(),
+                            determineStatus(cycle));
+                })
+                .sorted(Comparator
+                        .comparing(MyEvaluationSummaryResponse::cycleStartDate)
+                        .reversed()
+                        .thenComparing(Comparator.comparing(
+                                MyEvaluationSummaryResponse::evaluationId).reversed()))
+                .toList();
     }
 
     @Override

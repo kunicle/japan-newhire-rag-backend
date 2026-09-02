@@ -1,5 +1,7 @@
 package com.teamproject.japan_newhire_rag_backend.evaluation.controller;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.EvaluationResultResponse;
+import com.teamproject.japan_newhire_rag_backend.evaluation.dto.MyEvaluationSummaryResponse;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.SelfEvaluationDraftRequest;
 import com.teamproject.japan_newhire_rag_backend.evaluation.dto.SelfEvaluationResponse;
 import com.teamproject.japan_newhire_rag_backend.evaluation.service.EvaluationResultService;
@@ -34,6 +37,11 @@ public class MyEvaluationController {
         this.selfEvaluationService = selfEvaluationService;
         this.submissionService = submissionService;
         this.resultService = resultService;
+    }
+
+    @GetMapping
+    public List<MyEvaluationSummaryResponse> getMyEvaluations() {
+        return selfEvaluationService.getMyEvaluations();
     }
 
     @GetMapping("/{evaluationId}/self")
