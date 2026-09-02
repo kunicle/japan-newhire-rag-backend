@@ -63,6 +63,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfTokenRepository())
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                        .sessionAuthenticationStrategy(new NullAuthenticatedSessionStrategy())
                         .requireCsrfProtectionMatcher(new OrRequestMatcher(
                                 PathPatternRequestMatcher.pathPattern(
                                         HttpMethod.POST, "/api/auth/refresh"),

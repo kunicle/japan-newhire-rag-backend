@@ -37,6 +37,8 @@ import org.springframework.web.context.WebApplicationContext;
 import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
+import jakarta.servlet.http.Cookie;
+
 import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.RoleType;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.security.JwtAuthenticationFilter;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.security.RestAccessDeniedHandler;
@@ -117,6 +119,18 @@ class SecurityConfigTest {
                         .header("Authorization", "Bearer valid-token"))
                 .andExpect(status().isOk())
                 .andExpect(content().string("protected"));
+    }
+
+    @Test
+    void authenticatedGetKeepsExistingCsrfCookie() throws Exception {
+        stubJwt("valid-token", Set.of(RoleType.EMPLOYEE));
+
+        mockMvc.perform(get("/api/me")
+                        .header("Authorization", "Bearer valid-token")
+                        .cookie(new Cookie("XSRF-TOKEN", "existing-csrf-token")))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().doesNotExist("Set-Cookie"));
     }
 
     @Test
@@ -205,6 +219,23 @@ class SecurityConfigTest {
         mockMvc.perform(post("/api/auth/refresh").with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(content().string("refresh"));
+    }
+
+    @Test
+    void refreshAcceptsMatchingCsrfCookieAndHeader() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(new Cookie("XSRF-TOKEN", "csrf-token"))
+                        .header("X-XSRF-TOKEN", "csrf-token"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("refresh"));
+    }
+
+    @Test
+    void refreshRejectsCsrfCookieWithoutHeader() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(new Cookie("XSRF-TOKEN", "csrf-token")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     @Test
@@ -308,9 +339,14 @@ class SecurityConfigTest {
             return "protected";
         }
 
+
         @GetMapping({"/api/documents", "/api/documents/{documentId}"})
         String documentManagement() {
             return "documents";
+        }
+        @GetMapping("/api/me")
+        String me() {
+            return "me";
         }
 
         @PostMapping("/test/protected")
