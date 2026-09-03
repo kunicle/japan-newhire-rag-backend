@@ -19,6 +19,8 @@ import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProv
 import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.AccountStatusResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.CreateUserRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.CreateUserResponse;
+import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.NewHireProvisioningRequest;
+import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.NewHireProvisioningResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.UpdateUserRolesRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.UserRolesResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.entity.AppUser;
@@ -34,6 +36,7 @@ import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.Depa
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.Employee;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.JobGrade;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.DepartmentStatus;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmployeeType;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.DepartmentRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.EmployeeRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.JobGradeRepository;
@@ -129,6 +132,29 @@ public class UserAdministrationService {
         } catch (DataIntegrityViolationException exception) {
             throw new BusinessException(UserAdministrationErrorCode.USER_DATA_CONFLICT);
         }
+    }
+
+    public NewHireProvisioningResponse provisionNewHire(
+            NewHireProvisioningRequest request
+    ) {
+        CreateUserResponse created = createUser(new CreateUserRequest(
+                request.email(),
+                request.password(),
+                request.employeeNumber(),
+                request.employeeName(),
+                request.departmentId(),
+                request.jobGradeId(),
+                EmployeeType.NEW_HIRE,
+                request.hireDate()));
+        UserRolesResponse roleResult = updateRoles(
+                created.appUserId(),
+                new UpdateUserRolesRequest(Set.of(RoleType.EMPLOYEE)));
+        return new NewHireProvisioningResponse(
+                created.appUserId(),
+                created.employeeId(),
+                created.accountStatus(),
+                created.employmentStatus(),
+                roleResult.roles());
     }
 
     public AccountStatusResponse activate(Long appUserId) {

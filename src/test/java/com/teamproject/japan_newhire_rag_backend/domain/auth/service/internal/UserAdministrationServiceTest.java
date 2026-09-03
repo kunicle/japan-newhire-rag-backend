@@ -24,6 +24,7 @@ import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessExcept
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserContext;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProvider;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.CreateUserRequest;
+import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.NewHireProvisioningRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.entity.AppUser;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.entity.Role;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.entity.UserRole;
@@ -150,6 +151,57 @@ class UserAdministrationServiceTest {
                 BusinessException.class, () -> service.createUser(request()));
         assertEquals(UserAdministrationErrorCode.JOB_GRADE_NOT_AVAILABLE,
                 missingGrade.getErrorCode());
+    }
+
+    @Test
+    void provisionsNewHireWithExactlyEmployeeRoleAndAuditRecords() {
+        Department department = activeDepartment();
+        JobGrade jobGrade = activeJobGrade();
+        AppUser actor = AppUser.createActive("hr@example.com", "hash");
+        ReflectionTestUtils.setField(actor, "appUserId", 99L);
+        Role employeeRole = role(10L, RoleType.EMPLOYEE, true);
+        java.util.concurrent.atomic.AtomicReference<AppUser> createdUser =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        when(departmentRepository.findById(10L)).thenReturn(Optional.of(department));
+        when(jobGradeRepository.findById(20L)).thenReturn(Optional.of(jobGrade));
+        when(appUserRepository.save(any())).thenAnswer(invocation -> {
+            AppUser value = invocation.getArgument(0);
+            ReflectionTestUtils.setField(value, "appUserId", 1L);
+            createdUser.set(value);
+            return value;
+        });
+        when(employeeRepository.save(any())).thenAnswer(invocation -> {
+            Employee value = invocation.getArgument(0);
+            ReflectionTestUtils.setField(value, "employeeId", 2L);
+            return value;
+        });
+        when(appUserRepository.findForUpdateByAppUserId(1L))
+                .thenAnswer(invocation -> Optional.of(createdUser.get()));
+        when(appUserRepository.findById(99L)).thenReturn(Optional.of(actor));
+        when(roleRepository.findByRoleCodeIn(any()))
+                .thenReturn(java.util.List.of(employeeRole));
+        when(userRoleRepository.findForUpdateByAppUser_AppUserIdAndRevokedAtIsNull(1L))
+                .thenReturn(java.util.List.of());
+        when(userRoleRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            UserRole value = invocation.getArgument(0);
+            ReflectionTestUtils.setField(value, "userRoleId", 100L);
+            return value;
+        });
+
+        var response = service.provisionNewHire(new NewHireProvisioningRequest(
+                "new@example.com", "raw-password", "E-100", "New Hire",
+                10L, 20L, LocalDate.of(2026, 8, 13)));
+
+        assertEquals(Set.of(RoleType.EMPLOYEE), response.roles());
+        ArgumentCaptor<Employee> employeeCaptor = ArgumentCaptor.forClass(Employee.class);
+        verify(employeeRepository).save(employeeCaptor.capture());
+        assertEquals(EmployeeType.NEW_HIRE, employeeCaptor.getValue().getEmployeeType());
+        ArgumentCaptor<AuditLogRecordCommand> auditCaptor =
+                ArgumentCaptor.forClass(AuditLogRecordCommand.class);
+        verify(auditLogRecordService, org.mockito.Mockito.times(2)).record(auditCaptor.capture());
+        assertEquals(Set.of(AuditActionType.USER_CREATED, AuditActionType.ROLE_GRANTED),
+                auditCaptor.getAllValues().stream().map(AuditLogRecordCommand::actionType)
+                        .collect(java.util.stream.Collectors.toSet()));
     }
 
     @Test

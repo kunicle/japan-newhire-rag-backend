@@ -272,6 +272,24 @@ class SecurityConfigTest {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    void onlyHrManagerPassesNewHireProvisioningMatcher() throws Exception {
+        stubJwt("hr-token", Set.of(RoleType.HR_MANAGER));
+        mockMvc.perform(post("/api/hr/new-hires")
+                        .header("Authorization", "Bearer hr-token"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("new-hire"));
+
+        for (RoleType role : Set.of(
+                RoleType.EMPLOYEE, RoleType.MANAGER, RoleType.SYSTEM_ADMIN)) {
+            String token = role.name().toLowerCase() + "-token";
+            stubJwt(token, Set.of(role));
+            mockMvc.perform(post("/api/hr/new-hires")
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
     private void stubJwt(String token, Set<RoleType> roles) {
         when(accessTokenService.validateAndExtractAppUserId(token)).thenReturn(1L);
         when(authenticationQueryService.load(1L))
@@ -352,6 +370,11 @@ class SecurityConfigTest {
         @PostMapping("/test/protected")
         String protectedPost() {
             return "protected-post";
+        }
+
+        @PostMapping("/api/hr/new-hires")
+        String newHire() {
+            return "new-hire";
         }
 
         @PreAuthorize("hasRole('SYSTEM_ADMIN')")

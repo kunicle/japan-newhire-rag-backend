@@ -30,6 +30,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import com.teamproject.japan_newhire_rag_backend.common.exception.GlobalExceptionHandler;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.config.SecurityConfig;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.CreateUserResponse;
+import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.NewHireProvisioningResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.UserRolesResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.AccountStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.RoleType;
@@ -146,6 +147,56 @@ class UserAdministrationControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void hrManagerCanProvisionNewHire() throws Exception {
+        authenticateAs(RoleType.HR_MANAGER);
+        when(service.provisionNewHire(any())).thenReturn(new NewHireProvisioningResponse(
+                11L, 12L, AccountStatus.ACTIVE, EmploymentStatus.EMPLOYED,
+                Set.of(RoleType.EMPLOYEE)));
+
+        mockMvc.perform(post("/api/hr/new-hires")
+                        .header("Authorization", "Bearer token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(newHireRequestJson()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.appUserId").value(11))
+                .andExpect(jsonPath("$.employeeId").value(12))
+                .andExpect(jsonPath("$.roles.length()").value(1))
+                .andExpect(jsonPath("$.roles[0]").value("EMPLOYEE"));
+    }
+
+    @Test
+    void nonHrRolesCannotProvisionNewHire() throws Exception {
+        for (RoleType role : Set.of(
+                RoleType.EMPLOYEE, RoleType.MANAGER, RoleType.SYSTEM_ADMIN)) {
+            authenticateAs(role);
+            mockMvc.perform(post("/api/hr/new-hires")
+                            .header("Authorization", "Bearer token")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(newHireRequestJson()))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    void roleAndEmployeeTypeInjectionCannotReachProvisioningContract() throws Exception {
+        authenticateAs(RoleType.HR_MANAGER);
+        when(service.provisionNewHire(any())).thenReturn(new NewHireProvisioningResponse(
+                11L, 12L, AccountStatus.ACTIVE, EmploymentStatus.EMPLOYED,
+                Set.of(RoleType.EMPLOYEE)));
+
+        mockMvc.perform(post("/api/hr/new-hires")
+                        .header("Authorization", "Bearer token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(newHireRequestJson().replace(
+                                "\"hireDate\":\"2026-08-13\"",
+                                "\"hireDate\":\"2026-08-13\"," +
+                                        "\"employeeType\":\"GENERAL\"," +
+                                        "\"roles\":[\"SYSTEM_ADMIN\"]")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.roles[0]").value("EMPLOYEE"));
+    }
+
     private void authenticateAs(RoleType role) {
         when(accessTokenService.validateAndExtractAppUserId("token")).thenReturn(1L);
         when(authenticationQueryService.load(1L))
@@ -161,9 +212,18 @@ class UserAdministrationControllerTest {
                 """;
     }
 
+    private String newHireRequestJson() {
+        return """
+                {"email":"new@example.com","password":"raw-password",
+                "employeeNumber":"E-100","employeeName":"New Hire",
+                "departmentId":10,"jobGradeId":20,"hireDate":"2026-08-13"}
+                """;
+    }
+
     @Configuration
     @EnableWebMvc
-    @Import({UserAdministrationController.class, GlobalExceptionHandler.class,
+    @Import({UserAdministrationController.class, HrNewHireProvisioningController.class,
+            GlobalExceptionHandler.class,
             SecurityConfig.class, RestAuthenticationEntryPoint.class,
             RestAccessDeniedHandler.class})
     static class TestConfiguration {
