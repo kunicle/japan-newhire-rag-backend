@@ -1,5 +1,8 @@
 package com.teamproject.japan_newhire_rag_backend.domain.onboarding.service;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,6 +13,7 @@ import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProv
 import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.RoleType;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingTaskActivationRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingTaskCreateRequest;
+import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingTaskPageResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingTaskResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingTaskUpdateRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.entity.OnboardingTask;
@@ -18,6 +22,11 @@ import com.teamproject.japan_newhire_rag_backend.domain.organization.api.Organiz
 
 @Service
 public class OnboardingTaskService {
+
+    private static final int MAX_PAGE_SIZE = 100;
+    private static final Sort TASK_LIST_SORT = Sort.by(
+            Sort.Order.desc("createdAt"),
+            Sort.Order.desc("onboardingTaskId"));
 
     private final OnboardingTaskRepository onboardingTaskRepository;
     private final OrganizationQueryService organizationQueryService;
@@ -51,6 +60,32 @@ public class OnboardingTaskService {
 
         return OnboardingTaskResponse.from(
                 onboardingTaskRepository.save(task));
+    }
+
+    @Transactional(readOnly = true)
+    public OnboardingTaskPageResponse getTasks(
+            int page,
+            int size
+    ) {
+        validateCurrentHrManager();
+        validatePageRequest(page, size);
+
+        PageRequest pageRequest = PageRequest.of(
+                page,
+                size,
+                TASK_LIST_SORT);
+        Page<OnboardingTaskResponse> taskPage =
+                onboardingTaskRepository.findAll(pageRequest)
+                        .map(OnboardingTaskResponse::from);
+
+        return OnboardingTaskPageResponse.from(taskPage);
+    }
+
+    @Transactional(readOnly = true)
+    public OnboardingTaskResponse getTask(Long taskId) {
+        validateCurrentHrManager();
+        validateTaskId(taskId);
+        return OnboardingTaskResponse.from(findTask(taskId));
     }
 
     @Transactional
@@ -126,6 +161,21 @@ public class OnboardingTaskService {
             throw new BusinessException(
                     ErrorCode.INVALID_REQUEST,
                     "Task ID must be a positive number");
+        }
+    }
+
+    private void validatePageRequest(int page, int size) {
+        if (page < 0) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_REQUEST,
+                    "Page must not be negative");
+        }
+
+        if (size < 1 || size > MAX_PAGE_SIZE) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_REQUEST,
+                    "Size must be between 1 and "
+                            + MAX_PAGE_SIZE);
         }
     }
 }

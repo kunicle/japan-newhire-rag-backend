@@ -8,11 +8,13 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
 import java.time.LocalDateTime;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -29,8 +31,11 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
+import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCode;
+import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessException;
 import com.teamproject.japan_newhire_rag_backend.common.exception.GlobalExceptionHandler;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingAssignmentCreateResponse;
+import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingTaskPageResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingTaskResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.service.OnboardingAssignmentService;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.service.OnboardingTaskService;
@@ -88,6 +93,102 @@ class OnboardingTaskControllerTest {
                 .andExpect(jsonPath("$.createdBy").value(100));
 
         verify(onboardingTaskService).createTask(any());
+    }
+
+    @Test
+    void getsOnboardingTasksWithDefaultPage() throws Exception {
+        when(onboardingTaskService.getTasks(0, 20))
+                .thenReturn(new OnboardingTaskPageResponse(
+                        List.of(taskResponse(true)),
+                        0,
+                        20,
+                        1,
+                        1,
+                        true,
+                        true));
+
+        mockMvc.perform(get("/api/hr/onboarding-tasks"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].taskId")
+                        .value(1))
+                .andExpect(jsonPath("$.content[0].active")
+                        .value(true))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements")
+                        .value(1));
+
+        verify(onboardingTaskService).getTasks(0, 20);
+    }
+
+    @Test
+    void getsOnboardingTasksWithRequestedPage()
+            throws Exception {
+        when(onboardingTaskService.getTasks(2, 10))
+                .thenReturn(new OnboardingTaskPageResponse(
+                        List.of(),
+                        2,
+                        10,
+                        25,
+                        3,
+                        false,
+                        true));
+
+        mockMvc.perform(get("/api/hr/onboarding-tasks")
+                        .param("page", "2")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements")
+                        .value(25));
+
+        verify(onboardingTaskService).getTasks(2, 10);
+    }
+
+    @Test
+    void getsOnboardingTaskDetail() throws Exception {
+        when(onboardingTaskService.getTask(1L))
+                .thenReturn(taskResponse(false));
+
+        mockMvc.perform(get("/api/hr/onboarding-tasks/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.taskId").value(1))
+                .andExpect(jsonPath("$.departmentId")
+                        .value(10))
+                .andExpect(jsonPath("$.active")
+                        .value(false));
+
+        verify(onboardingTaskService).getTask(1L);
+    }
+
+    @Test
+    void missingOnboardingTaskDetailReturnsNotFound()
+            throws Exception {
+        when(onboardingTaskService.getTask(404L))
+                .thenThrow(new BusinessException(
+                        ErrorCode.RESOURCE_NOT_FOUND,
+                        "Onboarding task not found"));
+
+        mockMvc.perform(get("/api/hr/onboarding-tasks/404"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code")
+                        .value("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    void invalidTaskDetailIdReturnsBadRequest()
+            throws Exception {
+        mockMvc.perform(get(
+                        "/api/hr/onboarding-tasks/not-a-number"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message")
+                        .value("Task ID must be a number"));
+
+        verify(onboardingTaskService, never())
+                .getTask(any());
     }
 
     @Test
