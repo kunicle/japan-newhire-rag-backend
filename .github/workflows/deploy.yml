@@ -101,9 +101,21 @@ jobs:
             --env-file "$ENV_FILE" \
             "my-service-api:$IMAGE_TAG"
 
-          sleep 10
+          for i in {1..12}; do
+            if curl --fail --silent http://127.0.0.1:8080/health; then
+              echo "Backend health check passed."
+              break
+            fi
 
-          curl --fail --silent http://127.0.0.1:8080/health
+            if [ "$i" -eq 12 ]; then
+              echo "Backend health check failed."
+              docker logs --tail 100 my-service-api
+              exit 1
+            fi
+
+            echo "Waiting for backend... ($i/12)"
+            sleep 5
+          done
 
           docker image prune -f
           EOF
