@@ -60,6 +60,7 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
+          mkdir -p ~/.ssh
           ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
           scp -i deploy_key app.jar Dockerfile "$EC2_USER@$EC2_HOST:/home/$EC2_USER/"
 
