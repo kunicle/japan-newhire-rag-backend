@@ -1,0 +1,108 @@
+name: Backend CD
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: backend-production-deploy
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Grant execute permission for Maven Wrapper
+        run: chmod +x mvnw
+
+      - name: Package application
+        run: ./mvnw -B clean package -DskipTests
+
+      - name: Prepare deployment files
+        run: |
+          JAR_FILE=$(find target -maxdepth 1 -type f -name "*.jar" ! -name "*original*" | head -n 1)
+          test -n "$JAR_FILE"
+          cp "$JAR_FILE" app.jar
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-northeast-2
+
+      - name: Get SSH deploy key
+        run: |
+          aws secretsmanager get-secret-value \
+            --secret-id japan-newhire/deploy/ssh-key \
+            --query SecretString \
+            --output text > deploy_key
+          chmod 600 deploy_key
+
+      - name: Upload deployment files
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+          scp -i deploy_key app.jar Dockerfile "$EC2_USER@$EC2_HOST:/home/$EC2_USER/"
+
+      - name: Deploy backend container
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          ssh -i deploy_key "$EC2_USER@$EC2_HOST" \
+            EC2_USER="$EC2_USER" IMAGE_TAG="$IMAGE_TAG" 'bash -s' <<'EOF'
+          set -e
+
+          cd "/home/$EC2_USER"
+
+          ENV_FILE="/tmp/my-service-api.env"
+          : > "$ENV_FILE"
+
+          if docker inspect my-service-api >/dev/null 2>&1; then
+            docker inspect my-service-api \
+              --format '{{range .Config.Env}}{{println .}}{{end}}' \
+              | grep -E '^(FRONTEND_ORIGIN|RAG_AI_SERVER_BASE_URI)=' \
+              > "$ENV_FILE" || true
+          fi
+
+          docker build \
+            -t "my-service-api:$IMAGE_TAG" \
+            -t "my-service-api:latest" \
+            .
+
+          docker rm -f my-service-api 2>/dev/null || true
+
+          docker run -d \
+            --name my-service-api \
+            --restart unless-stopped \
+            --network deploy_my-service-net \
+            -p 8080:8080 \
+            --env-file "$ENV_FILE" \
+            "my-service-api:$IMAGE_TAG"
+
+          sleep 10
+
+          curl --fail --silent http://127.0.0.1:8080/health
+
+          docker image prune -f
+          EOF
