@@ -1,6 +1,7 @@
 package com.teamproject.japan_newhire_rag_backend.document.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -106,6 +107,8 @@ class DocumentManagementQueryServiceTest {
         DocumentVersion allVersion = version(20L, document, "v2", sameTime);
         DocumentVersion restrictedVersion = version(
                 10L, document, "v1", LocalDateTime.of(2026, 1, 1, 0, 0));
+        when(restrictedVersion.getPublicationStatus()).thenReturn("RETRACTED");
+        when(restrictedVersion.isActive()).thenReturn(false);
         when(documentRepository.findById(1L)).thenReturn(Optional.of(document));
         when(categoryRepository.findAllById(List.of(10L))).thenReturn(List.of(category));
         when(versionRepository.findByDocument_DocumentIdIn(List.of(1L)))
@@ -143,6 +146,8 @@ class DocumentManagementQueryServiceTest {
         assertEquals(7L, restricted.minimumJobGradeId());
         assertTrue(restricted.newEmployeeOnly());
         assertEquals("AND", restricted.conditionOperator().name());
+        assertEquals("RETRACTED", result.versions().get(2).publicationStatus());
+        assertFalse(result.versions().get(2).isActive());
     }
 
     @Test

@@ -149,6 +149,22 @@ class DocumentPublicationServiceTest {
     }
 
     @Test
+    void throwsConflictWhenAttemptingToRepublishRetractedVersion() {
+        DocumentVersion target = activeVersion(20L, activeDocument());
+        target.retract();
+        when(repository.findForUpdateByDocument_DocumentId(10L)).thenReturn(List.of(target));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.publish(10L, 20L, 77L));
+
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
+        assertThat(exception.getMessage()).isEqualTo("철회된 버전은 다시 공개할 수 없습니다.");
+        assertThat(target.getPublicationStatus()).isEqualTo("RETRACTED");
+        assertThat(target.isActive()).isFalse();
+    }
+
+    @Test
     void usesPessimisticLockQuery() {
         DocumentVersion target = version(20L, activeDocument());
         when(repository.findForUpdateByDocument_DocumentId(10L)).thenReturn(List.of(target));

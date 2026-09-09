@@ -1,6 +1,7 @@
 package com.teamproject.japan_newhire_rag_backend.document.version.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
@@ -9,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -83,6 +85,33 @@ class DocumentVersionCandidateServiceTest {
                 .thenReturn(List.of());
 
         assertEquals(Set.of(), service.findCandidateDocumentVersionIds());
+    }
+
+    @Test
+    void retractedVersionIsInactiveAndCandidateQueryStillRequiresPublicStatus() {
+        DocumentVersion version = DocumentVersion.create(
+                null,
+                "v1",
+                LocalDate.now(),
+                null,
+                "policy.txt",
+                "/documents/policy.txt",
+                100L);
+        version.publish(77L, LocalDateTime.now());
+        version.retract();
+        when(documentVersionRepository
+                .findByDocument_DocumentStatusAndDocument_DeletedAtIsNullAndPublicationStatusAndIsActiveTrueAndEffectiveDateLessThanEqual(
+                        anyString(), anyString(), any()))
+                .thenReturn(List.of());
+
+        Set<Long> result = service.findCandidateDocumentVersionIds();
+
+        assertEquals("RETRACTED", version.getPublicationStatus());
+        assertFalse(version.isActive());
+        assertEquals(Set.of(), result);
+        verify(documentVersionRepository)
+                .findByDocument_DocumentStatusAndDocument_DeletedAtIsNullAndPublicationStatusAndIsActiveTrueAndEffectiveDateLessThanEqual(
+                        "ACTIVE", "PUBLIC", LocalDate.now());
     }
 
     private DocumentVersion documentVersion(Long documentVersionId, LocalDate expirationDate) {

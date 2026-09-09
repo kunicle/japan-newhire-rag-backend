@@ -124,4 +124,9 @@ public class DocumentVersion extends BaseEntity {
     public void deactivate() {
         this.isActive = false;
     }
+
+    public void retract() {
+        this.publicationStatus = "RETRACTED";
+        this.isActive = false;
+    }
 }
