@@ -82,8 +82,14 @@ jobs:
           if docker inspect my-service-api >/dev/null 2>&1; then
             docker inspect my-service-api \
               --format '{{range .Config.Env}}{{println .}}{{end}}' \
-              | grep -E '^(FRONTEND_ORIGIN|RAG_AI_SERVER_BASE_URI)=' \
+              | grep -E '^(FRONTEND_ORIGIN|RAG_AI_SERVER_BASE_URL)=' \
               > "$ENV_FILE" || true
+          fi
+
+          AI_BASE_URL=$(sed -n 's/^RAG_AI_SERVER_BASE_URL=//p' "$ENV_FILE")
+          if [ "$AI_BASE_URL" != "http://my-service-ai:5001" ]; then
+            echo "Required AI base URL is missing or does not match the production service."
+            exit 1
           fi
 
           docker build \
