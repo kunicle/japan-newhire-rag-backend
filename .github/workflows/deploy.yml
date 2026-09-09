@@ -76,14 +76,37 @@ jobs:
 
           cd "/home/$EC2_USER"
 
-          ENV_FILE="/tmp/my-service-api.env"
-          : > "$ENV_FILE"
+          ENV_FILE="/home/ubuntu/deploy/api/.env"
 
-          if docker inspect my-service-api >/dev/null 2>&1; then
-            docker inspect my-service-api \
-              --format '{{range .Config.Env}}{{println .}}{{end}}' \
-              | grep -E '^(FRONTEND_ORIGIN|RAG_AI_SERVER_BASE_URI)=' \
-              > "$ENV_FILE" || true
+          if [ ! -f "$ENV_FILE" ]; then
+            echo "Required backend runtime env file is missing."
+            exit 1
+          fi
+
+          if [ ! -r "$ENV_FILE" ]; then
+            echo "Backend runtime env file is not readable."
+            exit 1
+          fi
+
+          if [ "$(stat -c '%a' "$ENV_FILE")" != "600" ]; then
+            echo "Backend runtime env file must have permission 600."
+            exit 1
+          fi
+
+          if grep -q '^RAG_AI_SERVER_BASE_URI=' "$ENV_FILE"; then
+            echo "Legacy AI base URI variable is not supported."
+            exit 1
+          fi
+
+          if [ "$(grep -c '^RAG_AI_SERVER_BASE_URL=' "$ENV_FILE")" -ne 1 ]; then
+            echo "Required AI base URL must be configured exactly once."
+            exit 1
+          fi
+
+          AI_BASE_URL=$(sed -n 's/^RAG_AI_SERVER_BASE_URL=//p' "$ENV_FILE")
+          if [ "$AI_BASE_URL" != "http://my-service-ai:5001" ]; then
+            echo "Required AI base URL is missing or does not match the production service."
+            exit 1
           fi
 
           docker build \
