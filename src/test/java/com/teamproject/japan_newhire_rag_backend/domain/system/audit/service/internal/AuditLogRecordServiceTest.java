@@ -3,6 +3,7 @@ package com.teamproject.japan_newhire_rag_backend.domain.system.audit.service.in
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -137,6 +138,29 @@ class AuditLogRecordServiceTest {
                 "{\"cycleId\":10,\"targetEmployeeId\":20,\"selfEvaluationId\":101,"
                         + "\"managerEvaluationId\":102,\"visibleManagerFeedbackIds\":[201,202]}",
                 saved.getChangedValue());
+    }
+
+    @Test
+    void recordsDocumentVersionRetractionWithAllowedStateSnapshots() {
+        service.record(new AuditLogRecordCommand(
+                1L,
+                AuditActionType.DOCUMENT_VERSION_RETRACTED,
+                20L,
+                Map.of("publicationStatus", "PUBLIC", "isActive", true),
+                Map.of("publicationStatus", "RETRACTED", "isActive", false),
+                null,
+                null));
+
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogRepository).save(captor.capture());
+        AuditLog saved = captor.getValue();
+        assertEquals(AuditActionType.DOCUMENT_VERSION_RETRACTED, saved.getActionType());
+        assertEquals(AuditTargetType.DOCUMENT_VERSION, saved.getTargetType());
+        assertEquals(20L, saved.getTargetId());
+        assertTrue(saved.getPreviousValue().contains("\"publicationStatus\":\"PUBLIC\""));
+        assertTrue(saved.getPreviousValue().contains("\"isActive\":true"));
+        assertTrue(saved.getChangedValue().contains("\"publicationStatus\":\"RETRACTED\""));
+        assertTrue(saved.getChangedValue().contains("\"isActive\":false"));
     }
 
     @Test

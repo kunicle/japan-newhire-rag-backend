@@ -11,6 +11,9 @@ public enum AuditActionType {
     DIRECT_MANAGER_CHANGED(
             AuditTargetType.EMPLOYEE,
             Set.of("managerEmployeeId")),
+    DOCUMENT_VERSION_RETRACTED(
+            AuditTargetType.DOCUMENT_VERSION,
+            Set.of("publicationStatus", "isActive")),
     EVALUATION_RESULT_PUBLISHED(
             AuditTargetType.EVALUATION,
             Set.of(

@@ -7,8 +7,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.teamproject.japan_newhire_rag_backend.document.version.controller.dto.DocumentPublicationResponse;
+import com.teamproject.japan_newhire_rag_backend.document.version.controller.dto.DocumentRetractionResponse;
 import com.teamproject.japan_newhire_rag_backend.document.version.service.DocumentPublicationResult;
 import com.teamproject.japan_newhire_rag_backend.document.version.service.DocumentPublicationService;
+import com.teamproject.japan_newhire_rag_backend.document.version.service.DocumentRetractionResult;
+import com.teamproject.japan_newhire_rag_backend.document.version.service.DocumentRetractionService;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProvider;
 
 @RestController
@@ -17,12 +20,15 @@ import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProv
 public class DocumentPublicationController {
 
     private final DocumentPublicationService documentPublicationService;
+    private final DocumentRetractionService documentRetractionService;
     private final CurrentUserProvider currentUserProvider;
 
     public DocumentPublicationController(
             DocumentPublicationService documentPublicationService,
+            DocumentRetractionService documentRetractionService,
             CurrentUserProvider currentUserProvider) {
         this.documentPublicationService = documentPublicationService;
+        this.documentRetractionService = documentRetractionService;
         this.currentUserProvider = currentUserProvider;
     }
 
@@ -36,5 +42,17 @@ public class DocumentPublicationController {
                 versionId,
                 appUserId);
         return DocumentPublicationResponse.from(result);
+    }
+
+    @PatchMapping("/{documentId}/versions/{versionId}/retract")
+    public DocumentRetractionResponse retract(
+            @PathVariable Long documentId,
+            @PathVariable Long versionId) {
+        Long appUserId = currentUserProvider.getCurrentUser().appUserId();
+        DocumentRetractionResult result = documentRetractionService.retract(
+                documentId,
+                versionId,
+                appUserId);
+        return DocumentRetractionResponse.from(result);
     }
 }

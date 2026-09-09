@@ -19,6 +19,7 @@ public class DocumentPublicationService {
 
     private static final String ACTIVE_DOCUMENT_STATUS = "ACTIVE";
     private static final String PUBLIC_PUBLICATION_STATUS = "PUBLIC";
+    private static final String RETRACTED_PUBLICATION_STATUS = "RETRACTED";
 
     private final DocumentVersionRepository documentVersionRepository;
 
@@ -43,6 +44,11 @@ public class DocumentPublicationService {
                         "문서 버전을 찾을 수 없습니다."));
 
         validateDocument(target.getDocument());
+        if (RETRACTED_PUBLICATION_STATUS.equals(target.getPublicationStatus())) {
+            throw new BusinessException(
+                    ErrorCode.CONFLICT,
+                    "철회된 버전은 다시 공개할 수 없습니다.");
+        }
         if (PUBLIC_PUBLICATION_STATUS.equals(target.getPublicationStatus())
                 && target.isActive()) {
             throw new BusinessException(ErrorCode.CONFLICT, "이미 공개된 버전입니다.");
