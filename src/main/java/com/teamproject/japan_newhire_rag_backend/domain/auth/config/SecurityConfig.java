@@ -102,6 +102,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/documents", "/api/documents/*")
                         .hasAnyRole("HR_MANAGER", "SYSTEM_ADMIN")
                         .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/documents/*/versions/*/audit-events")
+                        .hasAnyRole("HR_MANAGER", "SYSTEM_ADMIN")
+                        .requestMatchers(
                                 HttpMethod.PATCH,
                                 "/api/documents/*/versions/*/publish",
                                 "/api/documents/*/versions/*/retract")

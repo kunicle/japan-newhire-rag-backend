@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -31,10 +32,13 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCode;
 import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessException;
 import com.teamproject.japan_newhire_rag_backend.common.exception.GlobalExceptionHandler;
+import com.teamproject.japan_newhire_rag_backend.document.version.controller.dto.DocumentVersionAuditEventPageResponse;
+import com.teamproject.japan_newhire_rag_backend.document.version.controller.dto.DocumentVersionAuditEventResponse;
 import com.teamproject.japan_newhire_rag_backend.document.version.service.DocumentPublicationResult;
 import com.teamproject.japan_newhire_rag_backend.document.version.service.DocumentPublicationService;
 import com.teamproject.japan_newhire_rag_backend.document.version.service.DocumentRetractionResult;
 import com.teamproject.japan_newhire_rag_backend.document.version.service.DocumentRetractionService;
+import com.teamproject.japan_newhire_rag_backend.document.version.service.DocumentVersionAuditQueryService;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserContext;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProvider;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.config.SecurityConfig;
@@ -45,6 +49,7 @@ import com.teamproject.japan_newhire_rag_backend.domain.auth.security.RestAuthen
 import com.teamproject.japan_newhire_rag_backend.domain.auth.service.internal.InternalJwtAuthenticationQueryService;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.service.internal.JwtAuthenticationUser;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.token.AccessTokenService;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.enums.AuditActionType;
 
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -70,6 +75,7 @@ class DocumentPublicationControllerTest {
     @Autowired WebApplicationContext applicationContext;
     @Autowired DocumentPublicationService publicationService;
     @Autowired DocumentRetractionService retractionService;
+    @Autowired DocumentVersionAuditQueryService auditQueryService;
     @Autowired CurrentUserProvider currentUserProvider;
     @Autowired AccessTokenService accessTokenService;
     @Autowired InternalJwtAuthenticationQueryService authenticationQueryService;
@@ -81,6 +87,7 @@ class DocumentPublicationControllerTest {
         reset(
                 publicationService,
                 retractionService,
+                auditQueryService,
                 currentUserProvider,
                 accessTokenService,
                 authenticationQueryService);
@@ -275,6 +282,75 @@ class DocumentPublicationControllerTest {
                 .andExpect(jsonPath("$.message").value("이미 철회된 버전입니다."));
     }
 
+    @Test
+    void hrManagerCanReadNarrowDocumentVersionAuditEvents() throws Exception {
+        authenticateAs(RoleType.HR_MANAGER);
+        when(auditQueryService.findAll(10L, 20L, 2, 10)).thenReturn(auditEventPage());
+
+        mockMvc.perform(authenticatedAuditEventsRequest()
+                        .queryParam("page", "2")
+                        .queryParam("size", "10")
+                        .queryParam("targetType", "APP_USER")
+                        .queryParam("targetId", "999")
+                        .queryParam("actorUserId", "888"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].actionType")
+                        .value("DOCUMENT_VERSION_RETRACTED"))
+                .andExpect(jsonPath("$.content[0].actorUserId").value(77))
+                .andExpect(jsonPath("$.content[0].previousValue").exists())
+                .andExpect(jsonPath("$.content[0].changedValue").exists())
+                .andExpect(jsonPath("$.content[0].createdAt").value(RETRACTED_AT.toString()))
+                .andExpect(jsonPath("$.content[0].requestIp").doesNotExist())
+                .andExpect(jsonPath("$.content[0].requestId").doesNotExist())
+                .andExpect(jsonPath("$.content[0].targetType").doesNotExist())
+                .andExpect(jsonPath("$.content[0].targetId").doesNotExist());
+        verify(auditQueryService).findAll(10L, 20L, 2, 10);
+    }
+
+    @Test
+    void systemAdminCanReadDocumentVersionAuditEvents() throws Exception {
+        authenticateAs(RoleType.SYSTEM_ADMIN);
+        when(auditQueryService.findAll(10L, 20L, 0, 20)).thenReturn(emptyAuditEventPage());
+
+        mockMvc.perform(authenticatedAuditEventsRequest())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty());
+    }
+
+    @Test
+    void employeeCannotReadDocumentVersionAuditEvents() throws Exception {
+        authenticateAs(RoleType.EMPLOYEE);
+
+        mockMvc.perform(authenticatedAuditEventsRequest())
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(auditQueryService);
+    }
+
+    @Test
+    void managerCannotReadDocumentVersionAuditEvents() throws Exception {
+        authenticateAs(RoleType.MANAGER);
+
+        mockMvc.perform(authenticatedAuditEventsRequest())
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(auditQueryService);
+    }
+
+    @Test
+    void auditEventsReturnNotFoundForWrongDocumentVersionCombination() throws Exception {
+        authenticateAs(RoleType.HR_MANAGER);
+        when(auditQueryService.findAll(10L, 20L, 0, 20))
+                .thenThrow(new BusinessException(
+                        ErrorCode.RESOURCE_NOT_FOUND,
+                        "문서 버전을 찾을 수 없습니다."));
+
+        mockMvc.perform(authenticatedAuditEventsRequest())
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+    }
+
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
             authenticatedPublishRequest() {
         return publishRequest().header("Authorization", "Bearer " + ACCESS_TOKEN);
@@ -288,6 +364,13 @@ class DocumentPublicationControllerTest {
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
             authenticatedRetractRequest() {
         return patch("/api/documents/10/versions/20/retract")
+                .header("Authorization", "Bearer " + ACCESS_TOKEN);
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
+            authenticatedAuditEventsRequest() {
+        return org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .get("/api/documents/10/versions/20/audit-events")
                 .header("Authorization", "Bearer " + ACCESS_TOKEN);
     }
 
@@ -317,6 +400,24 @@ class DocumentPublicationControllerTest {
                 10L, 20L, "RETRACTED", false, RETRACTED_AT, 77L);
     }
 
+    private DocumentVersionAuditEventPageResponse auditEventPage() {
+        return new DocumentVersionAuditEventPageResponse(
+                List.of(new DocumentVersionAuditEventResponse(
+                        AuditActionType.DOCUMENT_VERSION_RETRACTED,
+                        77L,
+                        "{\"publicationStatus\":\"PUBLIC\",\"isActive\":true}",
+                        "{\"publicationStatus\":\"RETRACTED\",\"isActive\":false}",
+                        RETRACTED_AT)),
+                2,
+                10,
+                1,
+                1);
+    }
+
+    private DocumentVersionAuditEventPageResponse emptyAuditEventPage() {
+        return new DocumentVersionAuditEventPageResponse(List.of(), 0, 20, 0, 0);
+    }
+
     @Configuration
     @EnableWebMvc
     @Import({
@@ -334,6 +435,9 @@ class DocumentPublicationControllerTest {
         }
         @Bean DocumentRetractionService retractionService() {
             return mock(DocumentRetractionService.class);
+        }
+        @Bean DocumentVersionAuditQueryService auditQueryService() {
+            return mock(DocumentVersionAuditQueryService.class);
         }
         @Bean CurrentUserProvider currentUserProvider() { return mock(CurrentUserProvider.class); }
         @Bean AccessTokenService accessTokenService() { return mock(AccessTokenService.class); }
