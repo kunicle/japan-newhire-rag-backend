@@ -1,5 +1,8 @@
 package com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal;
 
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationStatus;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationType;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.ManagerRelationRepository;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -35,13 +38,16 @@ public class OrganizationTreeQueryService {
 
     private final DepartmentRepository departmentRepository;
     private final EmployeeRepository employeeRepository;
+    private final ManagerRelationRepository managerRelationRepository;
 
     public OrganizationTreeQueryService(
             DepartmentRepository departmentRepository,
-            EmployeeRepository employeeRepository
+            EmployeeRepository employeeRepository,
+            ManagerRelationRepository managerRelationRepository
     ) {
         this.departmentRepository = departmentRepository;
         this.employeeRepository = employeeRepository;
+        this.managerRelationRepository = managerRelationRepository;
     }
 
     public OrganizationResponse getOrganizationTree() {
@@ -111,12 +117,22 @@ public class OrganizationTreeQueryService {
     private Map<Long, List<OrganizationEmployeeResponse>> groupEmployees(
             Map<Long, Department> departmentsById
     ) {
+        Map<Long, Long> managers = new HashMap<>();
+        managerRelationRepository.findByRelationTypeAndRelationStatusAndEndedAtIsNull(
+                RelationType.DIRECT,
+                RelationStatus.ACTIVE)
+                .stream().filter(relation -> relation.getEmployee().getDeletedAt() == null
+                        && relation.getManagerEmployee().getDeletedAt() == null)
+                .forEach(relation -> {
+                    if (managers.put(relation.getEmployee().getEmployeeId(),
+                            relation.getManagerEmployee().getEmployeeId()) != null) throw dataConflict();
+                });
         Map<Long, List<OrganizationEmployeeResponse>> employeesByDepartmentId = new HashMap<>();
         employeeRepository.findByDeletedAtIsNullAndDepartment_DeletedAtIsNull().stream()
                 .filter(employee -> employee.getDeletedAt() == null)
                 .filter(employee -> departmentsById.containsKey(
                         employee.getDepartment().getDepartmentId()))
-                .map(this::toEmployeeResponse)
+                .map(employee -> toEmployeeResponse(employee, managers.get(employee.getEmployeeId())))
                 .forEach(employee -> employeesByDepartmentId
                         .computeIfAbsent(employee.departmentId(), ignored -> new ArrayList<>())
                         .add(employee));
@@ -154,7 +170,7 @@ public class OrganizationTreeQueryService {
                 children);
     }
 
-    private OrganizationEmployeeResponse toEmployeeResponse(Employee employee) {
+    private OrganizationEmployeeResponse toEmployeeResponse(Employee employee, Long managerEmployeeId) {
         return new OrganizationEmployeeResponse(
                 employee.getEmployeeId(),
                 employee.getEmployeeNumber(),
@@ -163,7 +179,9 @@ public class OrganizationTreeQueryService {
                 employee.getJobGrade().getJobGradeId(),
                 employee.getJobGrade().getGradeName(),
                 employee.getJobGrade().getGradeLevel(),
-                employee.getHireDate());
+                employee.getHireDate(),
+                employee.getDepartment().getDepartmentName(),
+                managerEmployeeId);
     }
 
     private int countDepartments(List<OrganizationDepartmentResponse> departments) {

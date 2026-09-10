@@ -26,6 +26,20 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Department extends BaseEntity {
 
+    public static Department create(String code, String name, Department parent) {
+        Department department = new Department();
+        department.departmentCode = code;
+        department.departmentName = name;
+        department.departmentStatus = DepartmentStatus.ACTIVE;
+        department.parentDepartment = parent;
+        return department;
+    }
+
+    public void update(String name, Department parent) {
+        this.departmentName = name;
+        this.parentDepartment = parent;
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "department_id")

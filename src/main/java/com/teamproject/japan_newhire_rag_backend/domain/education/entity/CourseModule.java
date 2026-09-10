@@ -42,6 +42,15 @@ public class CourseModule extends BaseEntity {
     @Column(name = "reference_url", length = 500)
     private String referenceUrl;
 
+    @Column(name = "attachment_original_file_name", length = 255)
+    private String attachmentOriginalFileName;
+
+    @Column(name = "attachment_stored_file_path", length = 255)
+    private String attachmentStoredFilePath;
+
+    @Column(name = "attachment_file_size")
+    private Long attachmentFileSize;
+
     @Column(name = "module_order", nullable = false)
     private int moduleOrder;
 
@@ -86,5 +95,26 @@ public class CourseModule extends BaseEntity {
 
     public void changeActive(boolean active) {
         this.active = active;
+    }
+
+    public void replaceAttachment(
+            String originalFileName,
+            String storedFilePath,
+            long fileSize
+    ) {
+        this.attachmentOriginalFileName = originalFileName;
+        this.attachmentStoredFilePath = storedFilePath;
+        this.attachmentFileSize = fileSize;
+    }
+
+    public void removeAttachment() {
+        this.attachmentOriginalFileName = null;
+        this.attachmentStoredFilePath = null;
+        this.attachmentFileSize = null;
+    }
+
+    public boolean hasAttachment() {
+        return attachmentStoredFilePath != null
+                && !attachmentStoredFilePath.isBlank();
     }
 }

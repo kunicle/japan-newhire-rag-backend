@@ -52,13 +52,14 @@ class HrEmployeeManagerControllerTest {
 
     @Autowired WebApplicationContext context;
     @Autowired DirectManagerCommandService service;
+    @Autowired com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal.EmployeeOrganizationCommandService organizationService;
     @Autowired AccessTokenService accessTokenService;
     @Autowired InternalJwtAuthenticationQueryService authenticationQueryService;
     MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        reset(service, accessTokenService, authenticationQueryService);
+        reset(service, organizationService, accessTokenService, authenticationQueryService);
         mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
 
@@ -98,6 +99,53 @@ class HrEmployeeManagerControllerTest {
         request("{\"managerEmployeeId\":0}").andExpect(status().isBadRequest());
     }
 
+    @Test
+    void hrManagerCanEditOrganizationAndRemoveManager() throws Exception {
+        authenticateAs(RoleType.HR_MANAGER);
+        mockMvc.perform(patch("/api/hr/employees/10/organization")
+                .header("Authorization", "Bearer token").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"departmentId\":1,\"jobGradeId\":2,\"managerEmployeeId\":null}"))
+                .andExpect(status().isNoContent());
+        org.mockito.Mockito.verify(organizationService).changeOrganization(10L,
+                new com.teamproject.japan_newhire_rag_backend.domain.organization.controller.dto.ChangeEmployeeOrganizationRequest(1L, 2L, null));
+    }
+
+    @Test
+    void organizationAndDepartmentWritesRequireHrRole() throws Exception {
+        for (RoleType role : Set.of(RoleType.EMPLOYEE, RoleType.MANAGER, RoleType.SYSTEM_ADMIN)) {
+            authenticateAs(role);
+            mockMvc.perform(patch("/api/hr/employees/10/organization").header("Authorization", "Bearer token")
+                    .contentType(MediaType.APPLICATION_JSON).content("{\"departmentId\":1,\"jobGradeId\":2}"))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/hr/departments")
+                    .header("Authorization", "Bearer token").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"departmentCode\":\"DEV\",\"departmentName\":\"Development\"}"))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(patch("/api/hr/departments/1").header("Authorization", "Bearer token")
+                    .contentType(MediaType.APPLICATION_JSON).content("{\"departmentName\":\"Development\"}"))
+                    .andExpect(status().isForbidden());
+        }
+        org.mockito.Mockito.verifyNoInteractions(organizationService);
+    }
+
+    @Test
+    void anonymousOrganizationWriteIsUnauthorized() throws Exception {
+        mockMvc.perform(patch("/api/hr/employees/10/organization").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"departmentId\":1,\"jobGradeId\":2}")).andExpect(status().isUnauthorized());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/hr/departments")
+                .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isUnauthorized());
+        mockMvc.perform(patch("/api/hr/departments/1").contentType(MediaType.APPLICATION_JSON)
+                .content("{}")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void invalidOrganizationBodyIsBadRequest() throws Exception {
+        authenticateAs(RoleType.HR_MANAGER);
+        mockMvc.perform(patch("/api/hr/employees/10/organization").header("Authorization", "Bearer token")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"departmentId\":0,\"jobGradeId\":2}"))
+                .andExpect(status().isBadRequest());
+    }
+
     private org.springframework.test.web.servlet.ResultActions request(String body) throws Exception {
         return mockMvc.perform(patch("/api/hr/employees/10/manager")
                 .header("Authorization", "Bearer token")
@@ -113,10 +161,16 @@ class HrEmployeeManagerControllerTest {
 
     @Configuration
     @EnableWebMvc
-    @Import({HrEmployeeManagerController.class, GlobalExceptionHandler.class,
+    @Import({HrOrganizationController.class, HrEmployeeManagerController.class, GlobalExceptionHandler.class,
             SecurityConfig.class, RestAuthenticationEntryPoint.class,
             RestAccessDeniedHandler.class})
     static class TestConfiguration {
+        @Bean com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal.EmployeeOrganizationCommandService organizationService() {
+            return mock(com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal.EmployeeOrganizationCommandService.class);
+        }
+        @Bean com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal.DepartmentCommandService departmentService() {
+            return mock(com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal.DepartmentCommandService.class);
+        }
         @Bean ObjectMapper objectMapper() { return JsonMapper.builder().build(); }
         @Bean DirectManagerCommandService directManagerCommandService() {
             return mock(DirectManagerCommandService.class);

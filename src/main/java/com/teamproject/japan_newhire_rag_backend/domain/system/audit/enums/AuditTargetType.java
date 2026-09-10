@@ -4,6 +4,7 @@ public enum AuditTargetType {
     APP_USER,
     USER_ROLE,
     EMPLOYEE,
+    DEPARTMENT,
     EVALUATION,
     DOCUMENT_VERSION
 }

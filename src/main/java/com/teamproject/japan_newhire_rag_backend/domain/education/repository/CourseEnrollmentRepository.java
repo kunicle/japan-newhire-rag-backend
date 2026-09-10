@@ -16,6 +16,10 @@ public interface CourseEnrollmentRepository
 
     boolean existsByCourse_CourseId(Long courseId);
 
+    boolean existsByCourse_CourseIdAndEmployeeId(
+        Long courseId,
+        Long employeeId);
+
     List<CourseEnrollment>
     findAllByCourse_CourseIdAndEmployeeIdInAndEnrollmentRound(
             Long courseId,

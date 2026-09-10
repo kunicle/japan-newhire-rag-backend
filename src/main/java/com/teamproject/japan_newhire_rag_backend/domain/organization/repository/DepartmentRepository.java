@@ -11,6 +11,10 @@ import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.Depar
 
 public interface DepartmentRepository extends JpaRepository<Department, Long> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select d from Department d order by d.departmentId")
+    List<Department> lockDepartments();
+
     @EntityGraph(attributePaths = "parentDepartment")
     List<Department> findByDeletedAtIsNull();
 

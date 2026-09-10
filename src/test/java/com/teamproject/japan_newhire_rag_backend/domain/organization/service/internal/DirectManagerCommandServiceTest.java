@@ -177,6 +177,56 @@ class DirectManagerCommandServiceTest {
                 () -> service.changeDirectManager(10L, new ChangeDirectManagerRequest(20L)));
     }
 
+    @Test
+    void rejectsLowerGradeManager() {
+        Employee employee = employee(10L, null);
+        Employee manager = employee(20L, null);
+        when(employeeRepository.findForUpdateByEmployeeId(10L)).thenReturn(Optional.of(employee));
+        when(employeeRepository.findById(20L)).thenReturn(Optional.of(manager));
+        when(manager.getJobGrade().getGradeLevel()).thenReturn(5);
+        assertCode(OrganizationErrorCode.MANAGER_GRADE_NOT_ALLOWED,
+                () -> service.changeManager(10L, 20L));
+        verifyNoInteractions(auditLogRecordService);
+    }
+
+    @Test
+    void rejectsThreeEmployeeCycle() {
+        Employee a = employee(10L, null), b = employee(20L, null), c = employee(30L, null);
+        when(managerRelationRepository.findByEmployee_EmployeeIdAndRelationTypeAndRelationStatusAndEndedAtIsNull(
+                10L, RelationType.DIRECT, RelationStatus.ACTIVE)).thenReturn(List.of());
+        when(employeeRepository.findForUpdateByEmployeeId(10L)).thenReturn(Optional.of(a));
+        when(employeeRepository.findById(20L)).thenReturn(Optional.of(b));
+        when(managerRelationRepository.findByEmployee_EmployeeIdAndRelationTypeAndRelationStatusAndEndedAtIsNull(
+                20L, RelationType.DIRECT, RelationStatus.ACTIVE))
+                .thenReturn(List.of(ManagerRelation.createDirect(b, c, mock(AppUser.class), NOW)));
+        when(managerRelationRepository.findByEmployee_EmployeeIdAndRelationTypeAndRelationStatusAndEndedAtIsNull(
+                30L, RelationType.DIRECT, RelationStatus.ACTIVE))
+                .thenReturn(List.of(ManagerRelation.createDirect(c, a, mock(AppUser.class), NOW)));
+        assertCode(OrganizationErrorCode.MANAGER_CYCLE_NOT_ALLOWED, () -> service.changeManager(10L, 20L));
+        verify(managerRelationRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void removingManagerEndsHistoryAndAuditsNull() {
+        Employee employee = employee(10L, null), manager = employee(20L, null);
+        AppUser actor = mock(AppUser.class);
+        when(employeeRepository.findForUpdateByEmployeeId(10L)).thenReturn(Optional.of(employee));
+        when(currentUserProvider.getCurrentUser()).thenReturn(new CurrentUserContext(
+                100L, 1L, java.util.Set.of(RoleType.HR_MANAGER), null, null, null));
+        when(appUserRepository.findById(100L)).thenReturn(Optional.of(actor));
+        ManagerRelation current = ManagerRelation.createDirect(employee, manager, actor, NOW.minusDays(1));
+        when(managerRelationRepository.findByEmployee_EmployeeIdAndRelationTypeAndRelationStatusAndEndedAtIsNull(
+                10L, RelationType.DIRECT, RelationStatus.ACTIVE)).thenReturn(List.of(current));
+        assertNull(service.changeManager(10L, null).managerEmployeeId());
+        assertEquals(RelationStatus.ENDED, current.getRelationStatus());
+        assertEquals(NOW, current.getEndedAt());
+        verify(managerRelationRepository, never()).saveAndFlush(any());
+        var captor = ArgumentCaptor.forClass(AuditLogRecordCommand.class);
+        verify(auditLogRecordService).record(captor.capture());
+        assertEquals(20L, captor.getValue().previousValue().get("managerEmployeeId"));
+        assertNull(captor.getValue().changedValue().get("managerEmployeeId"));
+    }
+
     private void stubEmployeesAndActor(Employee employee, Employee manager, AppUser actor) {
         when(employeeRepository.findForUpdateByEmployeeId(10L)).thenReturn(Optional.of(employee));
         when(employeeRepository.findById(20L)).thenReturn(Optional.of(manager));
@@ -187,6 +237,9 @@ class DirectManagerCommandServiceTest {
 
     private Employee employee(Long id, LocalDateTime deletedAt) {
         Employee employee = mock(Employee.class);
+        var grade = mock(com.teamproject.japan_newhire_rag_backend.domain.organization.entity.JobGrade.class);
+        lenient().when(grade.getGradeLevel()).thenReturn(3);
+        lenient().when(employee.getJobGrade()).thenReturn(grade);
         lenient().when(employee.getEmployeeId()).thenReturn(id);
         lenient().when(employee.getDeletedAt()).thenReturn(deletedAt);
         return employee;

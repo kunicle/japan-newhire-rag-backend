@@ -30,12 +30,14 @@ class OrganizationTreeQueryServiceTest {
     private DepartmentRepository departmentRepository;
     private EmployeeRepository employeeRepository;
     private OrganizationTreeQueryService service;
+    private com.teamproject.japan_newhire_rag_backend.domain.organization.repository.ManagerRelationRepository relations;
 
     @BeforeEach
     void setUp() {
         departmentRepository = mock(DepartmentRepository.class);
         employeeRepository = mock(EmployeeRepository.class);
-        service = new OrganizationTreeQueryService(departmentRepository, employeeRepository);
+        relations = mock(com.teamproject.japan_newhire_rag_backend.domain.organization.repository.ManagerRelationRepository.class);
+        service = new OrganizationTreeQueryService(departmentRepository, employeeRepository, relations);
     }
 
     @Test
@@ -65,6 +67,23 @@ class OrganizationTreeQueryServiceTest {
         assertEquals("Junior", employees.get(0).jobGradeName());
         assertEquals(1, employees.get(0).jobGradeLevel());
         assertEquals(LocalDate.of(2026, 1, 2), employees.get(0).hireDate());
+    }
+
+    @Test
+    void includesCurrentDirectManagerAndDepartmentName() {
+        Department department = department(1L, "DEV", "Development", null, 0, null);
+        Employee employee = employee(10L, "E10", "Kim", department, 1L, "Junior", 5);
+        Employee manager = employee(20L, "E20", "Lee", department, 2L, "Senior", 2);
+        when(departmentRepository.findByDeletedAtIsNull()).thenReturn(List.of(department));
+        when(employeeRepository.findByDeletedAtIsNullAndDepartment_DeletedAtIsNull()).thenReturn(List.of(employee, manager));
+        var relation = com.teamproject.japan_newhire_rag_backend.domain.organization.entity.ManagerRelation.createDirect(
+                employee, manager, mock(com.teamproject.japan_newhire_rag_backend.domain.auth.entity.AppUser.class), LocalDateTime.now());
+        when(relations.findByRelationTypeAndRelationStatusAndEndedAtIsNull(
+                com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationType.DIRECT,
+                com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationStatus.ACTIVE)).thenReturn(List.of(relation));
+        var result = service.getOrganizationTree().departments().get(0).employees().get(0);
+        assertEquals(20L, result.managerEmployeeId());
+        assertEquals("Development", result.departmentName());
     }
 
     @Test

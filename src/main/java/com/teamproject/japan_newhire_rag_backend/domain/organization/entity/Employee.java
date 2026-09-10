@@ -67,6 +67,11 @@ public class Employee extends BaseEntity {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    public void changeOrganization(Department department, JobGrade jobGrade) {
+        this.department = department;
+        this.jobGrade = jobGrade;
+    }
+
     public static Employee createEmployed(
             AppUser appUser,
             Department department,

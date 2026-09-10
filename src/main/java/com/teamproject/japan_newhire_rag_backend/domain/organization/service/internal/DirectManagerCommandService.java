@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -58,16 +57,21 @@ public class DirectManagerCommandService {
             Long employeeId,
             ChangeDirectManagerRequest request
     ) {
-        Long managerEmployeeId = request.managerEmployeeId();
+        return changeManager(employeeId, request.managerEmployeeId());
+    }
+
+    /** Null ends the current relationship while retaining its history. */
+    public DirectManagerResponse changeManager(Long employeeId, Long managerEmployeeId) {
         if (employeeId.equals(managerEmployeeId)) {
             throw new BusinessException(OrganizationErrorCode.SELF_MANAGER_NOT_ALLOWED);
         }
 
+        employeeRepository.lockOrganizationEmployees();
         Employee employee = employeeRepository.findForUpdateByEmployeeId(employeeId)
                 .filter(value -> value.getDeletedAt() == null)
                 .orElseThrow(() -> new BusinessException(
                         OrganizationErrorCode.EMPLOYEE_NOT_FOUND));
-        Employee manager = employeeRepository.findById(managerEmployeeId)
+        Employee manager = managerEmployeeId == null ? null : employeeRepository.findById(managerEmployeeId)
                 .filter(value -> value.getDeletedAt() == null)
                 .orElseThrow(() -> new BusinessException(
                         OrganizationErrorCode.MANAGER_NOT_FOUND));
@@ -83,11 +87,18 @@ public class DirectManagerCommandService {
         }
 
         ManagerRelation current = activeRelations.isEmpty() ? null : activeRelations.get(0);
+        if (manager != null && manager.getJobGrade().getGradeLevel() > employee.getJobGrade().getGradeLevel()) {
+            throw new BusinessException(OrganizationErrorCode.MANAGER_GRADE_NOT_ALLOWED);
+        }
+        validateNoCycle(employeeId, managerEmployeeId);
         if (current != null
                 && current.getManagerEmployee().getEmployeeId().equals(managerEmployeeId)) {
             return new DirectManagerResponse(employeeId, managerEmployeeId);
         }
 
+        if (current == null && managerEmployeeId == null) {
+            return new DirectManagerResponse(employeeId, null);
+        }
         Long actorAppUserId = currentUserProvider.getCurrentUser().appUserId();
         AppUser actor = appUserRepository.findById(actorAppUserId)
                 .filter(value -> value.getDeletedAt() == null)
@@ -102,8 +113,11 @@ public class DirectManagerCommandService {
             if (current != null) {
                 current.end(changedAt);
             }
-            managerRelationRepository.saveAndFlush(
-                    ManagerRelation.createDirect(employee, manager, actor, changedAt));
+            managerRelationRepository.flush();
+            if (manager != null) {
+                managerRelationRepository.saveAndFlush(
+                        ManagerRelation.createDirect(employee, manager, actor, changedAt));
+            }
         } catch (DataIntegrityViolationException exception) {
             throw new BusinessException(
                     OrganizationErrorCode.MANAGER_RELATION_DATA_CONFLICT);
@@ -114,10 +128,26 @@ public class DirectManagerCommandService {
                 AuditActionType.DIRECT_MANAGER_CHANGED,
                 employeeId,
                 Collections.singletonMap("managerEmployeeId", previousManagerEmployeeId),
-                Map.of("managerEmployeeId", managerEmployeeId),
+                Collections.singletonMap("managerEmployeeId", managerEmployeeId),
                 null,
                 null));
         return new DirectManagerResponse(employeeId, managerEmployeeId);
     }
 
+    private void validateNoCycle(Long employeeId, Long managerEmployeeId) {
+        java.util.Set<Long> visited = new java.util.HashSet<>();
+        Long cursor = managerEmployeeId;
+        while (cursor != null) {
+            if (cursor.equals(employeeId) || !visited.add(cursor)) {
+                throw new BusinessException(OrganizationErrorCode.MANAGER_CYCLE_NOT_ALLOWED);
+            }
+            List<ManagerRelation> relations = managerRelationRepository
+                    .findByEmployee_EmployeeIdAndRelationTypeAndRelationStatusAndEndedAtIsNull(
+                            cursor, RelationType.DIRECT, RelationStatus.ACTIVE);
+            if (relations.size() > 1) {
+                throw new BusinessException(OrganizationErrorCode.MANAGER_RELATION_DATA_CONFLICT);
+            }
+            cursor = relations.isEmpty() ? null : relations.get(0).getManagerEmployee().getEmployeeId();
+        }
+    }
 }
