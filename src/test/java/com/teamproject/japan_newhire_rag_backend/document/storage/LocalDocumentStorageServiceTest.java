@@ -1,17 +1,15 @@
 package com.teamproject.japan_newhire_rag_backend.document.storage;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -89,6 +87,37 @@ class LocalDocumentStorageServiceTest {
         service.delete(reference);
 
         assertFalse(Files.exists(tempDirectory.resolve(reference)));
+    }
+
+    @Test
+    void loadsStoredBytes() {
+        LocalDocumentStorageService service = createService(tempDirectory);
+        byte[] content =
+                "교육 이수 단위 첨부 자료입니다."
+                        .getBytes(StandardCharsets.UTF_8);
+
+        String reference = service.store("교육자료.txt", content);
+
+        assertArrayEquals(content, service.load(reference));
+    }
+
+    @Test
+    void loadMissingFileThrowsException() {
+        LocalDocumentStorageService service = createService(tempDirectory);
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> service.load(
+                        "550e8400-e29b-41d4-a716-446655440000.txt"));
+    }
+
+    @Test
+    void loadRejectsPathTraversal() {
+        LocalDocumentStorageService service = createService(tempDirectory);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.load("../outside.txt"));
     }
 
     @Test

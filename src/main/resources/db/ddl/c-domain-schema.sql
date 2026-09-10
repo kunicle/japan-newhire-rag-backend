@@ -44,6 +44,9 @@ CREATE TABLE IF NOT EXISTS course_module (
     module_title VARCHAR(200) NOT NULL,
     module_content TEXT NULL,
     reference_url VARCHAR(500) NULL,
+    attachment_original_file_name VARCHAR(255) NULL,
+    attachment_stored_file_path VARCHAR(255) NULL,
+    attachment_file_size BIGINT NULL,
     module_order INT NOT NULL,
     is_required BOOLEAN NOT NULL DEFAULT TRUE,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -69,7 +72,20 @@ CREATE TABLE IF NOT EXISTS course_module (
             module_content IS NOT NULL
             OR reference_url IS NOT NULL
         ),
-
+    CONSTRAINT ck_course_module_attachment
+        CHECK (
+            (
+                attachment_original_file_name IS NULL
+                AND attachment_stored_file_path IS NULL
+                AND attachment_file_size IS NULL
+            )
+            OR
+            (
+                attachment_original_file_name IS NOT NULL
+                AND attachment_stored_file_path IS NOT NULL
+                AND attachment_file_size > 0
+            )
+        ),
     INDEX idx_course_module_course (
         course_id,
         is_active,

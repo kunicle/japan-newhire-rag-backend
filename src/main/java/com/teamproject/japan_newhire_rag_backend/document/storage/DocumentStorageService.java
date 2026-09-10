@@ -4,5 +4,8 @@ public interface DocumentStorageService {
 
     String store(String originalFileName, byte[] content);
 
+    byte[] load(String storedFilePath);
+
     void delete(String storedFilePath);
+
 }
