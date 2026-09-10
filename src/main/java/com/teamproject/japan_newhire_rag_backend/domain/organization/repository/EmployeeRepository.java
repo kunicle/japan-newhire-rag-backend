@@ -15,6 +15,11 @@ import jakarta.persistence.LockModeType;
 
 public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
+    // Serialize hierarchy edits so concurrent requests cannot introduce a cycle.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select e from Employee e order by e.employeeId")
+    List<Employee> lockOrganizationEmployees();
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Employee> findForUpdateByEmployeeId(Long employeeId);
 

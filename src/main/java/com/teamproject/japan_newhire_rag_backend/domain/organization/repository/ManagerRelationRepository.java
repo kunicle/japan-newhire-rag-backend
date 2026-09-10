@@ -12,6 +12,10 @@ import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.Relat
 public interface ManagerRelationRepository extends JpaRepository<ManagerRelation, Long> {
 
     @EntityGraph(attributePaths = {"employee", "managerEmployee"})
+    List<ManagerRelation> findByRelationTypeAndRelationStatusAndEndedAtIsNull(
+            RelationType relationType, RelationStatus relationStatus);
+
+    @EntityGraph(attributePaths = {"employee", "managerEmployee"})
     List<ManagerRelation> findByEmployee_EmployeeIdAndRelationTypeAndRelationStatusAndEndedAtIsNull(
             Long employeeId,
             RelationType relationType,

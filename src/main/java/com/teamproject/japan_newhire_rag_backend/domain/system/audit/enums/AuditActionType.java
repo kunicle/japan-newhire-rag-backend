@@ -8,6 +8,10 @@ public enum AuditActionType {
     ACCOUNT_DEACTIVATED(AuditTargetType.APP_USER, Set.of("accountStatus")),
     ROLE_GRANTED(AuditTargetType.USER_ROLE, Set.of("roleId", "roleType")),
     ROLE_REVOKED(AuditTargetType.USER_ROLE, Set.of("roleId", "roleType")),
+    EMPLOYEE_DEPARTMENT_CHANGED(AuditTargetType.EMPLOYEE, Set.of("departmentId")),
+    EMPLOYEE_JOB_GRADE_CHANGED(AuditTargetType.EMPLOYEE, Set.of("jobGradeId")),
+    DEPARTMENT_CREATED(AuditTargetType.DEPARTMENT, Set.of("departmentCode", "departmentName", "parentDepartmentId")),
+    DEPARTMENT_UPDATED(AuditTargetType.DEPARTMENT, Set.of("departmentCode", "departmentName", "parentDepartmentId")),
     DIRECT_MANAGER_CHANGED(
             AuditTargetType.EMPLOYEE,
             Set.of("managerEmployeeId")),

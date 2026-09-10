@@ -93,6 +93,11 @@ public class SecurityConfig {
                         .hasRole("SYSTEM_ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/hr/new-hires")
                         .hasRole("HR_MANAGER")
+                        .requestMatchers(HttpMethod.PATCH, "/api/hr/employees/*/organization",
+                                "/api/hr/departments/*")
+                        .hasRole("HR_MANAGER")
+                        .requestMatchers(HttpMethod.POST, "/api/hr/departments")
+                        .hasRole("HR_MANAGER")
                         .requestMatchers(HttpMethod.PATCH, "/api/hr/employees/*/manager")
                         .hasRole("HR_MANAGER")
                         .requestMatchers(HttpMethod.POST, "/api/documents")
