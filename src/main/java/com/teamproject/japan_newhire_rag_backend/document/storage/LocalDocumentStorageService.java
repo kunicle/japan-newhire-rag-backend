@@ -40,6 +40,27 @@ public class LocalDocumentStorageService implements DocumentStorageService {
     }
 
     @Override
+    public byte[] load(String storedFilePath) {
+        if (storedFilePath == null || storedFilePath.isBlank()) {
+            throw new IllegalArgumentException("저장된 파일 경로가 비어 있습니다.");
+        }
+
+        Path targetFile = resolveWithinRoot(storedFilePath);
+
+        if (!Files.isRegularFile(targetFile)) {
+            throw new IllegalStateException("저장된 문서 파일을 찾을 수 없습니다.");
+        }
+
+        try {
+            return Files.readAllBytes(targetFile);
+        } catch (IOException exception) {
+            throw new IllegalStateException(
+                    "문서 파일을 읽을 수 없습니다.",
+                    exception);
+        }
+    }
+
+    @Override
     public void delete(String storedFilePath) {
         if (storedFilePath == null || storedFilePath.isBlank()) {
             throw new IllegalArgumentException("저장된 파일 경로가 비어 있습니다.");
