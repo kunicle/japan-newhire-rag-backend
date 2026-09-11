@@ -10,6 +10,8 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.teamproject.japan_newhire_rag_backend.domain.education.entity.CourseEnrollment;
+import com.teamproject.japan_newhire_rag_backend.domain.education.enums.EnrollmentStatus;
+import java.time.LocalDate;
 
 public interface CourseEnrollmentRepository
         extends JpaRepository<CourseEnrollment, Long> {
@@ -39,4 +41,9 @@ public interface CourseEnrollmentRepository
     @EntityGraph(attributePaths = "course")
     Optional<CourseEnrollment> findByCourseEnrollmentId(
             Long courseEnrollmentId);
+
+    @EntityGraph(attributePaths = "course")
+    List<CourseEnrollment> findAllByEnrollmentDueDateAndEnrollmentStatusNot(
+            LocalDate enrollmentDueDate,
+            EnrollmentStatus enrollmentStatus);
 }

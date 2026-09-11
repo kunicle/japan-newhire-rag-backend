@@ -1,12 +1,9 @@
 package com.teamproject.japan_newhire_rag_backend.domain.system.notification.service.internal;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -16,8 +13,6 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-
 import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessException;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.entity.AppUser;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.repository.AppUserRepository;
@@ -48,16 +43,26 @@ class NotificationCommandServiceImplTest {
                 7L, "COURSE_ASSIGNED", "New course", "A course was assigned",
                 "COURSE", 31L));
 
-        ArgumentCaptor<Notification> saved = ArgumentCaptor.forClass(Notification.class);
-        verify(notifications).save(saved.capture());
-        Notification notification = saved.getValue();
-        assertSame(recipient, notification.getRecipient());
-        assertEquals("COURSE_ASSIGNED", notification.getNotificationType());
-        assertEquals("New course", notification.getTitle());
-        assertEquals("A course was assigned", notification.getMessage());
-        assertFalse(notification.isRead());
-        assertNull(notification.getReadAt());
-        assertEquals(31L, notification.getTargetId());
+        verify(notifications).insertIfAbsent(
+                7L, "COURSE_ASSIGNED", "New course", "A course was assigned",
+                "COURSE", 31L, java.time.LocalDateTime.of(2026, 8, 19, 3, 0));
+    }
+
+    @Test
+    void delegatesRepeatedEventSendsToDatabaseIdempotency() {
+        AppUser recipient = AppUser.createActive("user@example.com", "hash");
+        when(users.findById(7L)).thenReturn(Optional.of(recipient));
+        NotificationSendCommand command = new NotificationSendCommand(
+                7L, "EVALUATION_STARTED", "Started", "Evaluation started",
+                "EVALUATION_CYCLE", 4L);
+
+        service.send(command);
+        service.send(command);
+
+        verify(notifications, times(2)).insertIfAbsent(
+                7L, "EVALUATION_STARTED", "Started", "Evaluation started",
+                "EVALUATION_CYCLE", 4L,
+                java.time.LocalDateTime.of(2026, 8, 19, 3, 0));
     }
 
     @Test

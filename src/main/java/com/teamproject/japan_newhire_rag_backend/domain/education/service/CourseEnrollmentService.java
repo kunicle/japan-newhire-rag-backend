@@ -29,6 +29,8 @@ import com.teamproject.japan_newhire_rag_backend.domain.education.repository.Cou
 import com.teamproject.japan_newhire_rag_backend.domain.education.repository.CourseRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.education.repository.LearningProgressRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.api.OrganizationQueryService;
+import com.teamproject.japan_newhire_rag_backend.domain.system.notification.api.NotificationCommandService;
+import com.teamproject.japan_newhire_rag_backend.domain.system.notification.api.NotificationSendCommand;
 
 @Service
 public class CourseEnrollmentService {
@@ -40,6 +42,7 @@ public class CourseEnrollmentService {
     private final LearningProgressRepository learningProgressRepository;
     private final OrganizationQueryService organizationQueryService;
     private final CurrentUserProvider currentUserProvider;
+    private final NotificationCommandService notificationCommandService;
 
     public CourseEnrollmentService(
             CourseRepository courseRepository,
@@ -48,7 +51,8 @@ public class CourseEnrollmentService {
             CourseEnrollmentRepository courseEnrollmentRepository,
             LearningProgressRepository learningProgressRepository,
             OrganizationQueryService organizationQueryService,
-            CurrentUserProvider currentUserProvider
+            CurrentUserProvider currentUserProvider,
+            NotificationCommandService notificationCommandService
     ) {
         this.courseRepository = courseRepository;
         this.courseModuleRepository = courseModuleRepository;
@@ -57,6 +61,7 @@ public class CourseEnrollmentService {
         this.learningProgressRepository = learningProgressRepository;
         this.organizationQueryService = organizationQueryService;
         this.currentUserProvider = currentUserProvider;
+        this.notificationCommandService = notificationCommandService;
     }
 
     @Transactional
@@ -151,11 +156,33 @@ public class CourseEnrollmentService {
                 .toList();
 
         learningProgressRepository.saveAll(learningProgresses);
+        sendAssignmentNotifications(courseId, course, newEmployeeIds,
+                request.enrollmentDueDate());
 
         return new CourseEnrollmentCreateResponse(
                 newEmployeeIds.size(),
                 duplicateEmployeeIds.size(),
                 duplicateEmployeeIds);
+    }
+
+    private void sendAssignmentNotifications(
+            Long courseId,
+            Course course,
+            List<Long> employeeIds,
+            LocalDate enrollmentDueDate
+    ) {
+        organizationQueryService.findAppUserIdsByEmployeeIds(employeeIds)
+                .values()
+                .forEach(appUserId -> notificationCommandService.send(
+                        new NotificationSendCommand(
+                                appUserId,
+                                "COURSE_ASSIGNED",
+                                "교육이 배정되었습니다",
+                                "'" + course.getCourseName()
+                                        + "' 교육이 배정되었습니다. 마감일: "
+                                        + enrollmentDueDate,
+                                "COURSE",
+                                courseId)));
     }
 
     private List<Long> resolveTargetEmployeeIds(

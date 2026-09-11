@@ -18,6 +18,19 @@ public enum AuditActionType {
     DOCUMENT_VERSION_RETRACTED(
             AuditTargetType.DOCUMENT_VERSION,
             Set.of("publicationStatus", "isActive")),
+    DOCUMENT_VERSION_PUBLISHED(
+            AuditTargetType.DOCUMENT_VERSION,
+            Set.of("publicationStatus", "isActive")),
+    DOCUMENT_ACCESS_RULE_CHANGED(
+            AuditTargetType.DOCUMENT_VERSION,
+            Set.of(
+                    "accessScope",
+                    "conditionOperator",
+                    "roleIds",
+                    "departmentIds",
+                    "minimumJobGradeId",
+                    "newEmployeeOnly",
+                    "isActive")),
     EVALUATION_RESULT_PUBLISHED(
             AuditTargetType.EVALUATION,
             Set.of(

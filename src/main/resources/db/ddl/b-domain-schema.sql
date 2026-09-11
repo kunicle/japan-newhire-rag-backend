@@ -354,3 +354,35 @@ CREATE TABLE rag_citation (
     CONSTRAINT ck_rag_citation_position CHECK (position > 0),
     CONSTRAINT uk_rag_citation_position UNIQUE (rag_answer_id, position)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE external_api_call_log (
+    external_api_call_log_id BIGINT NOT NULL AUTO_INCREMENT,
+    ai_model_id BIGINT NOT NULL,
+    rag_question_id BIGINT NULL,
+    document_processing_job_id BIGINT NULL,
+    api_type VARCHAR(20) NOT NULL,
+    call_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    attempt_number INT NOT NULL DEFAULT 1,
+    http_status_code INT NULL,
+    error_type VARCHAR(100) NULL,
+    error_message VARCHAR(1000) NULL,
+    duration_ms INT NULL,
+    requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT pk_external_api_call_log PRIMARY KEY (external_api_call_log_id),
+    CONSTRAINT fk_external_api_call_log_model FOREIGN KEY (ai_model_id)
+        REFERENCES ai_model (ai_model_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_external_api_call_log_question FOREIGN KEY (rag_question_id)
+        REFERENCES rag_question (rag_question_id) ON DELETE SET NULL,
+    CONSTRAINT fk_external_api_call_log_job FOREIGN KEY (document_processing_job_id)
+        REFERENCES document_processing_job (document_processing_job_id) ON DELETE SET NULL,
+    CONSTRAINT ck_external_api_call_context CHECK (
+        rag_question_id IS NOT NULL OR document_processing_job_id IS NOT NULL),
+    CONSTRAINT ck_external_api_call_attempt CHECK (attempt_number BETWEEN 1 AND 3),
+    CONSTRAINT ck_external_api_call_duration CHECK (duration_ms IS NULL OR duration_ms >= 0),
+    INDEX idx_external_api_call_status_time (call_status, requested_at),
+    INDEX idx_external_api_call_error_time (api_type, error_type, requested_at),
+    INDEX idx_external_api_call_question_time (rag_question_id, requested_at),
+    INDEX idx_external_api_call_job_time (document_processing_job_id, requested_at)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;

@@ -40,6 +40,8 @@ import com.teamproject.japan_newhire_rag_backend.domain.education.repository.Cou
 import com.teamproject.japan_newhire_rag_backend.domain.education.repository.LearningProgressRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.api.OrganizationQueryService;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmployeeType;
+import com.teamproject.japan_newhire_rag_backend.domain.system.notification.api.NotificationCommandService;
+import com.teamproject.japan_newhire_rag_backend.domain.system.notification.api.NotificationSendCommand;
 
 @ExtendWith(MockitoExtension.class)
 class CourseEnrollmentServiceTest {
@@ -71,6 +73,9 @@ class CourseEnrollmentServiceTest {
     @Mock
     private CurrentUserProvider currentUserProvider;
 
+    @Mock
+    private NotificationCommandService notificationCommandService;
+
     private CourseEnrollmentService courseEnrollmentService;
 
     @BeforeEach
@@ -82,7 +87,8 @@ class CourseEnrollmentServiceTest {
                 courseEnrollmentRepository,
                 learningProgressRepository,
                 organizationQueryService,
-                currentUserProvider);
+                currentUserProvider,
+                notificationCommandService);
     }
 
     @Test
@@ -386,6 +392,33 @@ class CourseEnrollmentServiceTest {
                 .saveAll(org.mockito.ArgumentMatchers.any());
         verify(learningProgressRepository)
                 .saveAll(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void newEnrollmentsNotifyTheirAssignedEmployees() {
+        Course course = publicCourse();
+        CourseModule module = module(course, 1);
+        stubAssignableCourse(course);
+        when(organizationQueryService.isValidEmployee(20L)).thenReturn(true);
+        when(courseEnrollmentRepository
+                .findAllByCourse_CourseIdAndEmployeeIdInAndEnrollmentRound(
+                        COURSE_ID, List.of(20L), "1"))
+                .thenReturn(List.of());
+        when(courseModuleRepository
+                .findAllByCourse_CourseIdAndActiveTrueOrderByModuleOrderAsc(COURSE_ID))
+                .thenReturn(List.of(module));
+        when(organizationQueryService.findAppUserIdsByEmployeeIds(List.of(20L)))
+                .thenReturn(java.util.Map.of(20L, 200L));
+
+        courseEnrollmentService.createEnrollments(COURSE_ID, employeeRequest(20L));
+
+        ArgumentCaptor<NotificationSendCommand> captor =
+                ArgumentCaptor.forClass(NotificationSendCommand.class);
+        verify(notificationCommandService).send(captor.capture());
+        assertThat(captor.getValue()).isEqualTo(new NotificationSendCommand(
+                200L, "COURSE_ASSIGNED", "교육이 배정되었습니다",
+                "'New hire fundamentals' 교육이 배정되었습니다. 마감일: " + DUE_DATE,
+                "COURSE", COURSE_ID));
     }
 
     @Test

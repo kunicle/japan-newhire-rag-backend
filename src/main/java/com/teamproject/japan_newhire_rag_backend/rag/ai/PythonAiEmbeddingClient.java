@@ -5,7 +5,7 @@ import org.springframework.web.client.RestClient;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public class PythonAiEmbeddingClient implements AiEmbeddingClient {
+public class PythonAiEmbeddingClient implements AiEmbeddingCallMetadataClient {
 
     private final RestClient restClient;
     private final AiHttpRetryExecutor retryExecutor;
@@ -21,17 +21,26 @@ public class PythonAiEmbeddingClient implements AiEmbeddingClient {
 
     @Override
     public EmbeddingResult embed(EmbeddingRequest request) {
-        EmbedHttpResponse response = retryExecutor.execute(() -> restClient.post()
+        try {
+            return embedWithMetadata(request).result();
+        } catch (AiHttpCallException exception) {
+            throw exception.getOriginalFailure();
+        }
+    }
+
+    @Override
+    public AiHttpExecution<EmbeddingResult> embedWithMetadata(EmbeddingRequest request) {
+        AiHttpExecution<EmbedHttpResponse> execution = retryExecutor.executeWithMetadata(() -> restClient.post()
                 .uri("/embed")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(EmbedHttpRequest.from(request))
                 .retrieve()
                 .body(EmbedHttpResponse.class));
 
-        if (response == null) {
+        if (execution.result() == null) {
             throw new IllegalStateException("Python AI embedding 응답이 없습니다.");
         }
-        return response.toDomain();
+        return new AiHttpExecution<>(execution.result().toDomain(), execution.attempts());
     }
 
     private record EmbedHttpRequest(

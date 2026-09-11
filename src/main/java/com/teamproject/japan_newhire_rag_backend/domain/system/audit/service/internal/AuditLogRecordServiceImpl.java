@@ -89,14 +89,21 @@ public class AuditLogRecordServiceImpl implements AuditLogRecordService {
     private boolean isUnsupportedValue(AuditActionType actionType, String key, Object value) {
         if (actionType == AuditActionType.EVALUATION_RESULT_PUBLISHED
                 && "visibleManagerFeedbackIds".equals(key)) {
-            return !(value instanceof List<?> ids)
-                    || ids.stream().anyMatch(this::isInvalidId);
+            return !isPositiveIdList(value);
+        }
+        if (actionType == AuditActionType.DOCUMENT_ACCESS_RULE_CHANGED
+                && ("roleIds".equals(key) || "departmentIds".equals(key))) {
+            return !isPositiveIdList(value);
         }
         return value != null
                 && !(value instanceof String)
                 && !(value instanceof Number)
                 && !(value instanceof Boolean)
                 && !(value instanceof Enum<?>);
+    }
+
+    private boolean isPositiveIdList(Object value) {
+        return value instanceof List<?> ids && ids.stream().noneMatch(this::isInvalidId);
     }
 
     private boolean isInvalidId(Object value) {

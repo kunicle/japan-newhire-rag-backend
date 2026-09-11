@@ -2,6 +2,7 @@ package com.teamproject.japan_newhire_rag_backend.document.version.service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import org.springframework.stereotype.Service;
@@ -12,6 +13,9 @@ import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessExcept
 import com.teamproject.japan_newhire_rag_backend.document.entity.Document;
 import com.teamproject.japan_newhire_rag_backend.document.version.entity.DocumentVersion;
 import com.teamproject.japan_newhire_rag_backend.document.version.repository.DocumentVersionRepository;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordCommand;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordService;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.enums.AuditActionType;
 
 @Service
 @Transactional
@@ -22,9 +26,13 @@ public class DocumentPublicationService {
     private static final String RETRACTED_PUBLICATION_STATUS = "RETRACTED";
 
     private final DocumentVersionRepository documentVersionRepository;
+    private final AuditLogRecordService auditLogRecordService;
 
-    public DocumentPublicationService(DocumentVersionRepository documentVersionRepository) {
+    public DocumentPublicationService(
+            DocumentVersionRepository documentVersionRepository,
+            AuditLogRecordService auditLogRecordService) {
         this.documentVersionRepository = documentVersionRepository;
+        this.auditLogRecordService = auditLogRecordService;
     }
 
     public DocumentPublicationResult publish(
@@ -54,6 +62,8 @@ public class DocumentPublicationService {
             throw new BusinessException(ErrorCode.CONFLICT, "이미 공개된 버전입니다.");
         }
 
+        String previousPublicationStatus = target.getPublicationStatus();
+        boolean previousActive = target.isActive();
         LocalDateTime publishedAt = LocalDateTime.now();
         for (DocumentVersion version : lockedVersions) {
             if (!Objects.equals(version.getDocumentVersionId(), documentVersionId)
@@ -62,6 +72,18 @@ public class DocumentPublicationService {
             }
         }
         target.publish(publishedByAppUserId, publishedAt);
+        auditLogRecordService.record(new AuditLogRecordCommand(
+                publishedByAppUserId,
+                AuditActionType.DOCUMENT_VERSION_PUBLISHED,
+                target.getDocumentVersionId(),
+                Map.of(
+                        "publicationStatus", previousPublicationStatus,
+                        "isActive", previousActive),
+                Map.of(
+                        "publicationStatus", target.getPublicationStatus(),
+                        "isActive", target.isActive()),
+                null,
+                null));
 
         return new DocumentPublicationResult(
                 documentId,

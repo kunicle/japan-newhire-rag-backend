@@ -17,9 +17,12 @@ import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessExcept
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserContext;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProvider;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.RoleType;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.api.OrganizationQueryService;
 import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordCommand;
 import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordService;
 import com.teamproject.japan_newhire_rag_backend.domain.system.audit.enums.AuditActionType;
+import com.teamproject.japan_newhire_rag_backend.domain.system.notification.api.NotificationCommandService;
+import com.teamproject.japan_newhire_rag_backend.domain.system.notification.api.NotificationSendCommand;
 import com.teamproject.japan_newhire_rag_backend.evaluation.Evaluation;
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationCycle;
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationCycleRepository;
@@ -45,6 +48,8 @@ public class EvaluationPublishServiceImpl implements EvaluationPublishService {
     private final EvaluationPublishHistoryRepository historyRepository;
     private final CurrentUserProvider currentUserProvider;
     private final AuditLogRecordService auditLogRecordService;
+    private final OrganizationQueryService organizationQueryService;
+    private final NotificationCommandService notificationCommandService;
     private final Clock clock;
 
     public EvaluationPublishServiceImpl(
@@ -54,6 +59,8 @@ public class EvaluationPublishServiceImpl implements EvaluationPublishService {
             EvaluationPublishHistoryRepository historyRepository,
             CurrentUserProvider currentUserProvider,
             AuditLogRecordService auditLogRecordService,
+            OrganizationQueryService organizationQueryService,
+            NotificationCommandService notificationCommandService,
             Clock clock
     ) {
         this.evaluationRepository = evaluationRepository;
@@ -62,6 +69,8 @@ public class EvaluationPublishServiceImpl implements EvaluationPublishService {
         this.historyRepository = historyRepository;
         this.currentUserProvider = currentUserProvider;
         this.auditLogRecordService = auditLogRecordService;
+        this.organizationQueryService = organizationQueryService;
+        this.notificationCommandService = notificationCommandService;
         this.clock = clock;
     }
 
@@ -130,6 +139,7 @@ public class EvaluationPublishServiceImpl implements EvaluationPublishService {
         publish(evaluations.manager, publishedAt);
         saveHistories(evaluations, user.appUserId(), publishReason, publishedAt);
         recordAudit(evaluations, user.appUserId(), selectedIds);
+        sendPublishedNotification(evaluations.self);
         return response(evaluations, selectedIds, false);
     }
 
@@ -258,6 +268,22 @@ public class EvaluationPublishServiceImpl implements EvaluationPublishService {
         auditLogRecordService.record(new AuditLogRecordCommand(
                 actorAppUserId, AuditActionType.EVALUATION_RESULT_PUBLISHED,
                 evaluations.self.getEvaluationId(), null, changed, null, null));
+    }
+
+    private void sendPublishedNotification(Evaluation evaluation) {
+        Long recipientAppUserId = organizationQueryService
+                .findAppUserIdsByEmployeeIds(List.of(evaluation.getTargetEmployeeId()))
+                .get(evaluation.getTargetEmployeeId());
+        if (recipientAppUserId == null) {
+            return;
+        }
+        notificationCommandService.send(new NotificationSendCommand(
+                recipientAppUserId,
+                "EVALUATION_RESULT_PUBLISHED",
+                "평가 결과가 공개되었습니다",
+                "인사평가 결과를 확인할 수 있습니다.",
+                "EVALUATION",
+                evaluation.getEvaluationId()));
     }
 
     private EvaluationPublishResponse response(
