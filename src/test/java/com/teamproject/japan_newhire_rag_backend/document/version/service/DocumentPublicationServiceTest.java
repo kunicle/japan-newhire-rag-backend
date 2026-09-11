@@ -22,13 +22,19 @@ import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessExcept
 import com.teamproject.japan_newhire_rag_backend.document.entity.Document;
 import com.teamproject.japan_newhire_rag_backend.document.version.entity.DocumentVersion;
 import com.teamproject.japan_newhire_rag_backend.document.version.repository.DocumentVersionRepository;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordCommand;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordService;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.enums.AuditActionType;
 
 import jakarta.persistence.LockModeType;
+import org.mockito.ArgumentCaptor;
 
 class DocumentPublicationServiceTest {
 
     private final DocumentVersionRepository repository = mock(DocumentVersionRepository.class);
-    private final DocumentPublicationService service = new DocumentPublicationService(repository);
+    private final AuditLogRecordService auditLogRecordService = mock(AuditLogRecordService.class);
+    private final DocumentPublicationService service = new DocumentPublicationService(
+            repository, auditLogRecordService);
 
     @Test
     void publishesTargetVersionAndSetsPublicFieldsCorrectly() {
@@ -47,6 +53,26 @@ class DocumentPublicationServiceTest {
         assertThat(result.active()).isTrue();
         assertThat(result.publishedAt()).isEqualTo(target.getPublishedAt());
         assertThat(result.publishedBy()).isEqualTo(77L);
+    }
+
+    @Test
+    void recordsPublicationAuditWithBeforeAndAfterState() {
+        DocumentVersion target = version(20L, activeDocument());
+        when(repository.findForUpdateByDocument_DocumentId(10L)).thenReturn(List.of(target));
+
+        service.publish(10L, 20L, 77L);
+
+        ArgumentCaptor<AuditLogRecordCommand> captor =
+                ArgumentCaptor.forClass(AuditLogRecordCommand.class);
+        verify(auditLogRecordService).record(captor.capture());
+        AuditLogRecordCommand command = captor.getValue();
+        assertThat(command.actorUserId()).isEqualTo(77L);
+        assertThat(command.actionType()).isEqualTo(AuditActionType.DOCUMENT_VERSION_PUBLISHED);
+        assertThat(command.targetId()).isEqualTo(20L);
+        assertThat(command.previousValue().get("publicationStatus")).isEqualTo("DRAFT");
+        assertThat(command.previousValue().get("isActive")).isEqualTo(false);
+        assertThat(command.changedValue().get("publicationStatus")).isEqualTo("PUBLIC");
+        assertThat(command.changedValue().get("isActive")).isEqualTo(true);
     }
 
     @Test

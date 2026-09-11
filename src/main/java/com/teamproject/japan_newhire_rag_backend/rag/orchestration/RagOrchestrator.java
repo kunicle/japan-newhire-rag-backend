@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Set;
 
 import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagClient;
+import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagCallMetadataClient;
+import com.teamproject.japan_newhire_rag_backend.rag.ai.AiHttpExecution;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagGenerateRequest;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagGenerateResponse;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagSearchRequest;
@@ -53,8 +55,15 @@ public class RagOrchestrator {
                         providerName,
                         modelName);
         AiRagSearchResponse searchResponse;
+        List<com.teamproject.japan_newhire_rag_backend.rag.ai.AiHttpAttempt> attempts = List.of();
         try {
-            searchResponse = aiRagClient.search(searchRequest);
+            if (aiRagClient instanceof AiRagCallMetadataClient metadataClient) {
+                AiHttpExecution<AiRagSearchResponse> execution = metadataClient.searchWithMetadata(searchRequest);
+                searchResponse = execution.result();
+                attempts = execution.attempts();
+            } else {
+                searchResponse = aiRagClient.search(searchRequest);
+            }
         } catch (RuntimeException exception) {
             throw new ExternalAiCallException(exception);
         }
@@ -65,7 +74,8 @@ public class RagOrchestrator {
 
         return new RagSearchOrchestrationResult(
                 hasSufficientEvidence(verifiedSearchResults),
-                verifiedSearchResults);
+                verifiedSearchResults,
+                attempts);
     }
 
     public RagGenerationOrchestrationResult generate(
@@ -82,8 +92,15 @@ public class RagOrchestrator {
         AiRagGenerateRequest generateRequest =
                 new AiRagGenerateRequest(question, searchResult.verifiedSearchResults());
         AiRagGenerateResponse generateResponse;
+        List<com.teamproject.japan_newhire_rag_backend.rag.ai.AiHttpAttempt> attempts = List.of();
         try {
-            generateResponse = aiRagClient.generate(generateRequest);
+            if (aiRagClient instanceof AiRagCallMetadataClient metadataClient) {
+                AiHttpExecution<AiRagGenerateResponse> execution = metadataClient.generateWithMetadata(generateRequest);
+                generateResponse = execution.result();
+                attempts = execution.attempts();
+            } else {
+                generateResponse = aiRagClient.generate(generateRequest);
+            }
         } catch (RuntimeException exception) {
             throw new ExternalAiCallException(exception);
         }
@@ -91,7 +108,7 @@ public class RagOrchestrator {
                 generateResponse.citedChunkIds(),
                 searchResult.verifiedSearchResults());
 
-        return new RagGenerationOrchestrationResult(generateResponse.answer(), validCitedChunkIds);
+        return new RagGenerationOrchestrationResult(generateResponse.answer(), validCitedChunkIds, attempts);
     }
 
     private boolean hasSufficientEvidence(List<AiRagSearchResultItem> verifiedSearchResults) {

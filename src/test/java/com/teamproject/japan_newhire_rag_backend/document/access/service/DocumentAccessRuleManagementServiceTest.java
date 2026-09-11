@@ -38,6 +38,9 @@ import com.teamproject.japan_newhire_rag_backend.document.version.entity.Documen
 import com.teamproject.japan_newhire_rag_backend.document.version.repository.DocumentVersionRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.AccessReferenceQueryService;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.RoleType;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordCommand;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordService;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.enums.AuditActionType;
 
 class DocumentAccessRuleManagementServiceTest {
 
@@ -46,6 +49,7 @@ class DocumentAccessRuleManagementServiceTest {
     private DocumentAccessRoleRepository roleRepository;
     private DocumentAccessDepartmentRepository departmentRepository;
     private AccessReferenceQueryService referenceQueryService;
+    private AuditLogRecordService auditLogRecordService;
     private DocumentAccessRuleManagementService service;
     private DocumentVersion target;
     private DocumentAccessRule savedRule;
@@ -57,12 +61,14 @@ class DocumentAccessRuleManagementServiceTest {
         roleRepository = mock(DocumentAccessRoleRepository.class);
         departmentRepository = mock(DocumentAccessDepartmentRepository.class);
         referenceQueryService = mock(AccessReferenceQueryService.class);
+        auditLogRecordService = mock(AuditLogRecordService.class);
         service = new DocumentAccessRuleManagementService(
                 versionRepository,
                 ruleRepository,
                 roleRepository,
                 departmentRepository,
-                referenceQueryService);
+                referenceQueryService,
+                auditLogRecordService);
         target = version(20L, activeDocument());
         when(versionRepository.findForUpdateByDocument_DocumentId(10L))
                 .thenReturn(List.of(target));
@@ -209,6 +215,37 @@ class DocumentAccessRuleManagementServiceTest {
         assertThat(result.departmentIds()).containsExactly(8L);
         verify(roleRepository).deleteAll(List.of(oldRole));
         verify(departmentRepository).deleteAll(List.of(oldDepartment));
+    }
+
+    @Test
+    void recordsAccessRuleAuditWithBeforeAndAfterConditions() {
+        DocumentAccessRule existing = existingRule(
+                AccessScope.RESTRICTED, ConditionOperator.OR, 50L, false, 41L);
+        DocumentAccessRole oldRole = DocumentAccessRole.create(existing, 1L);
+        DocumentAccessDepartment oldDepartment = DocumentAccessDepartment.create(existing, 2L);
+        stubExisting(existing, List.of(oldRole), List.of(oldDepartment));
+        when(referenceQueryService.findRoleIdsByRoleTypes(Set.of(RoleType.SYSTEM_ADMIN)))
+                .thenReturn(Set.of(7L));
+
+        service.replace(
+                10L, 20L,
+                command(ConditionOperator.AND, Set.of(RoleType.SYSTEM_ADMIN), Set.of(8L), null, true),
+                77L);
+
+        ArgumentCaptor<AuditLogRecordCommand> captor =
+                ArgumentCaptor.forClass(AuditLogRecordCommand.class);
+        verify(auditLogRecordService).record(captor.capture());
+        AuditLogRecordCommand audit = captor.getValue();
+        assertThat(audit.actorUserId()).isEqualTo(77L);
+        assertThat(audit.actionType()).isEqualTo(AuditActionType.DOCUMENT_ACCESS_RULE_CHANGED);
+        assertThat(audit.targetId()).isEqualTo(20L);
+        assertThat(audit.previousValue().get("roleIds")).isEqualTo(List.of(1L));
+        assertThat(audit.previousValue().get("departmentIds")).isEqualTo(List.of(2L));
+        assertThat(audit.previousValue().get("minimumJobGradeId")).isEqualTo(50L);
+        assertThat(audit.changedValue().get("roleIds")).isEqualTo(List.of(7L));
+        assertThat(audit.changedValue().get("departmentIds")).isEqualTo(List.of(8L));
+        assertThat(audit.changedValue().get("minimumJobGradeId")).isNull();
+        assertThat(audit.changedValue().get("newEmployeeOnly")).isEqualTo(true);
     }
 
     @Test

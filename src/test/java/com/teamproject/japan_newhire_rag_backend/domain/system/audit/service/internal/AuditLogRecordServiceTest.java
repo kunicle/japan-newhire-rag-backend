@@ -164,6 +164,40 @@ class AuditLogRecordServiceTest {
     }
 
     @Test
+    void recordsDocumentAccessRuleChangeWithAllowedIdLists() {
+        Map<String, Object> previous = new LinkedHashMap<>();
+        previous.put("accessScope", "RESTRICTED");
+        previous.put("conditionOperator", "OR");
+        previous.put("roleIds", List.of(1L));
+        previous.put("departmentIds", List.of(2L));
+        previous.put("minimumJobGradeId", null);
+        previous.put("newEmployeeOnly", false);
+        previous.put("isActive", true);
+
+        service.record(new AuditLogRecordCommand(
+                1L,
+                AuditActionType.DOCUMENT_ACCESS_RULE_CHANGED,
+                20L,
+                previous,
+                Map.of(
+                        "accessScope", "ALL",
+                        "conditionOperator", "OR",
+                        "roleIds", List.of(),
+                        "departmentIds", List.of(),
+                        "newEmployeeOnly", false,
+                        "isActive", true),
+                null,
+                null));
+
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogRepository).save(captor.capture());
+        assertEquals(AuditActionType.DOCUMENT_ACCESS_RULE_CHANGED, captor.getValue().getActionType());
+        assertEquals(AuditTargetType.DOCUMENT_VERSION, captor.getValue().getTargetType());
+        assertTrue(captor.getValue().getPreviousValue().contains("\"roleIds\":[1]"));
+        assertTrue(captor.getValue().getChangedValue().contains("\"departmentIds\":[]"));
+    }
+
+    @Test
     void rejectsUnexpectedEvaluationResultMetadata() {
         AuditLogRecordCommand command = new AuditLogRecordCommand(
                 1L,

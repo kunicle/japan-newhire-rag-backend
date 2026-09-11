@@ -40,9 +40,12 @@ import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessExcept
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserContext;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProvider;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.RoleType;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.api.OrganizationQueryService;
 import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordCommand;
 import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordService;
 import com.teamproject.japan_newhire_rag_backend.domain.system.audit.enums.AuditActionType;
+import com.teamproject.japan_newhire_rag_backend.domain.system.notification.api.NotificationCommandService;
+import com.teamproject.japan_newhire_rag_backend.domain.system.notification.api.NotificationSendCommand;
 import com.teamproject.japan_newhire_rag_backend.evaluation.Evaluation;
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationCycle;
 import com.teamproject.japan_newhire_rag_backend.evaluation.EvaluationCycleRepository;
@@ -81,6 +84,8 @@ class EvaluationPublishServiceImplTest {
     @Mock private EvaluationPublishHistoryRepository historyRepository;
     @Mock private CurrentUserProvider currentUserProvider;
     @Mock private AuditLogRecordService auditLogRecordService;
+    @Mock private OrganizationQueryService organizationQueryService;
+    @Mock private NotificationCommandService notificationCommandService;
     @Mock private Evaluation self;
     @Mock private Evaluation manager;
     @Mock private EvaluationCycle cycle;
@@ -94,7 +99,8 @@ class EvaluationPublishServiceImplTest {
     void setUp() {
         service = new EvaluationPublishServiceImpl(
                 evaluationRepository, cycleRepository, feedbackRepository, historyRepository,
-                currentUserProvider, auditLogRecordService, CLOCK);
+                currentUserProvider, auditLogRecordService, organizationQueryService,
+                notificationCommandService, CLOCK);
         givenRoles(RoleType.HR_MANAGER);
         givenEvaluation(self, SELF_ID, EvaluationType.SELF);
         givenEvaluation(manager, MANAGER_ID, EvaluationType.MANAGER);
@@ -274,6 +280,7 @@ class EvaluationPublishServiceImplTest {
         verify(manager, never()).setEvaluationStatus(any());
         verify(historyRepository, never()).saveAll(any());
         verify(auditLogRecordService, never()).record(any());
+        verify(notificationCommandService, never()).send(any());
     }
 
     @Test
@@ -356,6 +363,18 @@ class EvaluationPublishServiceImplTest {
         assertEquals(List.of(SELECTED_MANAGER_FEEDBACK_ID),
                 command.changedValue().get("visibleManagerFeedbackIds"));
         assertFalse(command.changedValue().containsValue("selected content"));
+    }
+
+    @Test
+    void publishedEvaluationNotifiesTheTargetEmployeeOnce() {
+        when(organizationQueryService.findAppUserIdsByEmployeeIds(List.of(TARGET_ID)))
+                .thenReturn(java.util.Map.of(TARGET_ID, 200L));
+
+        service.publish(SELF_ID, request(null));
+
+        verify(notificationCommandService).send(new NotificationSendCommand(
+                200L, "EVALUATION_RESULT_PUBLISHED", "평가 결과가 공개되었습니다",
+                "인사평가 결과를 확인할 수 있습니다.", "EVALUATION", SELF_ID));
     }
 
     @Test

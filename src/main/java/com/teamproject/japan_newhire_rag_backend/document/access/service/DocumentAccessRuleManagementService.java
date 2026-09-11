@@ -1,7 +1,9 @@
 package com.teamproject.japan_newhire_rag_backend.document.access.service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -22,6 +24,9 @@ import com.teamproject.japan_newhire_rag_backend.document.entity.Document;
 import com.teamproject.japan_newhire_rag_backend.document.version.entity.DocumentVersion;
 import com.teamproject.japan_newhire_rag_backend.document.version.repository.DocumentVersionRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.AccessReferenceQueryService;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordCommand;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.api.AuditLogRecordService;
+import com.teamproject.japan_newhire_rag_backend.domain.system.audit.enums.AuditActionType;
 
 @Service
 @Transactional
@@ -34,18 +39,21 @@ public class DocumentAccessRuleManagementService {
     private final DocumentAccessRoleRepository documentAccessRoleRepository;
     private final DocumentAccessDepartmentRepository documentAccessDepartmentRepository;
     private final AccessReferenceQueryService accessReferenceQueryService;
+    private final AuditLogRecordService auditLogRecordService;
 
     public DocumentAccessRuleManagementService(
             DocumentVersionRepository documentVersionRepository,
             DocumentAccessRuleRepository documentAccessRuleRepository,
             DocumentAccessRoleRepository documentAccessRoleRepository,
             DocumentAccessDepartmentRepository documentAccessDepartmentRepository,
-            AccessReferenceQueryService accessReferenceQueryService) {
+            AccessReferenceQueryService accessReferenceQueryService,
+            AuditLogRecordService auditLogRecordService) {
         this.documentVersionRepository = documentVersionRepository;
         this.documentAccessRuleRepository = documentAccessRuleRepository;
         this.documentAccessRoleRepository = documentAccessRoleRepository;
         this.documentAccessDepartmentRepository = documentAccessDepartmentRepository;
         this.accessReferenceQueryService = accessReferenceQueryService;
+        this.auditLogRecordService = auditLogRecordService;
     }
 
     public DocumentAccessRuleResult replace(
@@ -70,29 +78,38 @@ public class DocumentAccessRuleManagementService {
         Set<Long> roleIds = resolveRoleIds(command);
         validateMinimumJobGrade(command.minimumJobGradeId());
 
-        DocumentAccessRule rule = documentAccessRuleRepository
+        DocumentAccessRule existingRule = documentAccessRuleRepository
                 .findByDocumentVersion_DocumentVersionId(documentVersionId)
-                .map(existing -> {
-                    existing.reconfigure(
-                            command.accessScope(),
-                            command.conditionOperator(),
-                            command.minimumJobGradeId(),
-                            command.newEmployeeOnly());
-                    return existing;
-                })
-                .orElseGet(() -> documentAccessRuleRepository.save(DocumentAccessRule.create(
-                        target,
-                        command.accessScope(),
-                        command.conditionOperator(),
-                        command.minimumJobGradeId(),
-                        command.newEmployeeOnly(),
-                        actorAppUserId)));
+                .orElse(null);
+        List<DocumentAccessRole> existingRoles = existingRule == null
+                ? List.of()
+                : documentAccessRoleRepository.findByDocumentAccessRule_DocumentAccessRuleId(
+                        existingRule.getDocumentAccessRuleId());
+        List<DocumentAccessDepartment> existingDepartments = existingRule == null
+                ? List.of()
+                : documentAccessDepartmentRepository.findByDocumentAccessRule_DocumentAccessRuleId(
+                        existingRule.getDocumentAccessRuleId());
+        Map<String, Object> previousValue = existingRule == null
+                ? null
+                : auditSnapshot(existingRule, roleIds(existingRoles), departmentIds(existingDepartments));
+        DocumentAccessRule rule;
+        if (existingRule == null) {
+            rule = documentAccessRuleRepository.save(DocumentAccessRule.create(
+                    target,
+                    command.accessScope(),
+                    command.conditionOperator(),
+                    command.minimumJobGradeId(),
+                    command.newEmployeeOnly(),
+                    actorAppUserId));
+        } else {
+            existingRule.reconfigure(
+                    command.accessScope(),
+                    command.conditionOperator(),
+                    command.minimumJobGradeId(),
+                    command.newEmployeeOnly());
+            rule = existingRule;
+        }
 
-        Long ruleId = rule.getDocumentAccessRuleId();
-        List<DocumentAccessRole> existingRoles = documentAccessRoleRepository
-                .findByDocumentAccessRule_DocumentAccessRuleId(ruleId);
-        List<DocumentAccessDepartment> existingDepartments = documentAccessDepartmentRepository
-                .findByDocumentAccessRule_DocumentAccessRuleId(ruleId);
         documentAccessRoleRepository.deleteAll(existingRoles);
         documentAccessDepartmentRepository.deleteAll(existingDepartments);
 
@@ -104,6 +121,15 @@ public class DocumentAccessRuleManagementService {
                 .toList();
         documentAccessRoleRepository.saveAll(newRoles);
         documentAccessDepartmentRepository.saveAll(newDepartments);
+
+        auditLogRecordService.record(new AuditLogRecordCommand(
+                actorAppUserId,
+                AuditActionType.DOCUMENT_ACCESS_RULE_CHANGED,
+                documentVersionId,
+                previousValue,
+                auditSnapshot(rule, roleIds, command.departmentIds()),
+                null,
+                null));
 
         return result(documentId, documentVersionId, rule, roleIds, command.departmentIds());
     }
@@ -190,5 +216,35 @@ public class DocumentAccessRuleManagementService {
                 rule.isNewEmployeeOnly(),
                 rule.isActive(),
                 rule.getCreatedBy());
+    }
+
+    private Map<String, Object> auditSnapshot(
+            DocumentAccessRule rule,
+            Set<Long> roleIds,
+            Set<Long> departmentIds) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("accessScope", rule.getAccessScope());
+        snapshot.put("conditionOperator", rule.getConditionOperator());
+        snapshot.put("roleIds", sortedIds(roleIds));
+        snapshot.put("departmentIds", sortedIds(departmentIds));
+        snapshot.put("minimumJobGradeId", rule.getMinimumJobGradeId());
+        snapshot.put("newEmployeeOnly", rule.isNewEmployeeOnly());
+        snapshot.put("isActive", rule.isActive());
+        return snapshot;
+    }
+
+    private Set<Long> roleIds(List<DocumentAccessRole> rows) {
+        return rows.stream().map(DocumentAccessRole::getRoleId).collect(java.util.stream.Collectors.toSet());
+    }
+
+    private Set<Long> departmentIds(List<DocumentAccessDepartment> rows) {
+        return rows.stream().map(DocumentAccessDepartment::getDepartmentId)
+                .collect(java.util.stream.Collectors.toSet());
+    }
+
+    private List<Long> sortedIds(Set<Long> ids) {
+        List<Long> sorted = new ArrayList<>(ids);
+        sorted.sort(Long::compareTo);
+        return List.copyOf(sorted);
     }
 }

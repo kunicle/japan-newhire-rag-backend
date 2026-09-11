@@ -91,6 +91,8 @@ public class SecurityConfig {
                         .hasRole("SYSTEM_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/admin/audit-logs")
                         .hasRole("SYSTEM_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/admin/system-errors")
+                        .hasRole("SYSTEM_ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/hr/new-hires")
                         .hasRole("HR_MANAGER")
                         .requestMatchers(HttpMethod.PATCH, "/api/hr/employees/*/organization",

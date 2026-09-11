@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Table;
 
 class NotificationSchemaConsistencyTest {
 
@@ -38,7 +39,15 @@ class NotificationSchemaConsistencyTest {
         assertTrue(notificationDdl.contains("reference_type VARCHAR(50) NULL"));
         assertTrue(notificationDdl.contains("reference_id BIGINT NULL"));
         assertTrue(notificationDdl.contains("FOREIGN KEY (app_user_id)"));
+        assertTrue(notificationDdl.contains("UNIQUE (app_user_id, notification_type, reference_type, reference_id)"));
         assertFalse(notificationDdl.contains("recipient_app_user_id"));
+    }
+
+    @Test
+    void entityDefinesTheNotificationEventIdempotencyKey() {
+        Table table = Notification.class.getAnnotation(Table.class);
+        assertEquals("uk_notification_event", table.uniqueConstraints()[0].name());
+        assertEquals(4, table.uniqueConstraints()[0].columnNames().length);
     }
 
     private void assertColumn(String fieldName, String columnName)

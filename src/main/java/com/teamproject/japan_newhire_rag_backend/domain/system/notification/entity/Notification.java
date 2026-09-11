@@ -13,13 +13,18 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
-@Table(name = "notification")
+@Table(name = "notification", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_notification_event", columnNames = {
+                "app_user_id", "notification_type", "reference_type", "reference_id"
+        })
+})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Notification {
 

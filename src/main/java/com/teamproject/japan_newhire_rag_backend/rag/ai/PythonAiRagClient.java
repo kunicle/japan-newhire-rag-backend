@@ -7,7 +7,7 @@ import org.springframework.web.client.RestClient;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public class PythonAiRagClient implements AiRagClient {
+public class PythonAiRagClient implements AiRagCallMetadataClient {
 
     private final RestClient restClient;
     private final AiHttpRetryExecutor retryExecutor;
@@ -26,32 +26,50 @@ public class PythonAiRagClient implements AiRagClient {
 
     @Override
     public AiRagSearchResponse search(AiRagSearchRequest request) {
-        SearchHttpResponse response = retryExecutor.execute(() -> restClient.post()
+        try {
+            return searchWithMetadata(request).result();
+        } catch (AiHttpCallException exception) {
+            throw exception.getOriginalFailure();
+        }
+    }
+
+    @Override
+    public AiHttpExecution<AiRagSearchResponse> searchWithMetadata(AiRagSearchRequest request) {
+        AiHttpExecution<SearchHttpResponse> execution = retryExecutor.executeWithMetadata(() -> restClient.post()
                 .uri("/rag/search")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(SearchHttpRequest.from(request))
                 .retrieve()
                 .body(SearchHttpResponse.class));
 
-        if (response == null) {
+        if (execution.result() == null) {
             throw new IllegalStateException("Python AI 검색 응답이 없습니다.");
         }
-        return response.toDomain();
+        return new AiHttpExecution<>(execution.result().toDomain(), execution.attempts());
     }
 
     @Override
     public AiRagGenerateResponse generate(AiRagGenerateRequest request) {
-        GenerateHttpResponse response = retryExecutor.execute(() -> restClient.post()
+        try {
+            return generateWithMetadata(request).result();
+        } catch (AiHttpCallException exception) {
+            throw exception.getOriginalFailure();
+        }
+    }
+
+    @Override
+    public AiHttpExecution<AiRagGenerateResponse> generateWithMetadata(AiRagGenerateRequest request) {
+        AiHttpExecution<GenerateHttpResponse> execution = retryExecutor.executeWithMetadata(() -> restClient.post()
                 .uri("/rag/generate")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(GenerateHttpRequest.from(request))
                 .retrieve()
                 .body(GenerateHttpResponse.class));
 
-        if (response == null) {
+        if (execution.result() == null) {
             throw new IllegalStateException("Python AI 생성 응답이 없습니다.");
         }
-        return response.toDomain();
+        return new AiHttpExecution<>(execution.result().toDomain(), execution.attempts());
     }
 
     private record SearchHttpRequest(
