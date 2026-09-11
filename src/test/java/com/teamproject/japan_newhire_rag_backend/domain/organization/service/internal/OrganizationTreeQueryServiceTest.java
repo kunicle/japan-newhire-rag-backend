@@ -1,18 +1,17 @@
 package com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessException;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.controller.dto.OrganizationDepartmentResponse;
@@ -21,6 +20,7 @@ import com.teamproject.japan_newhire_rag_backend.domain.organization.controller.
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.Department;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.Employee;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.JobGrade;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmployeeType;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.error.OrganizationErrorCode;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.DepartmentRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.EmployeeRepository;
@@ -202,6 +202,7 @@ class OrganizationTreeQueryServiceTest {
         when(employee.getDepartment()).thenReturn(department);
         when(employee.getJobGrade()).thenReturn(jobGrade);
         when(employee.getHireDate()).thenReturn(LocalDate.of(2026, 1, 2));
+        when(employee.getEmployeeType()).thenReturn(EmployeeType.GENERAL);
         when(jobGrade.getJobGradeId()).thenReturn(gradeId);
         when(jobGrade.getGradeName()).thenReturn(gradeName);
         when(jobGrade.getGradeLevel()).thenReturn(gradeLevel);
