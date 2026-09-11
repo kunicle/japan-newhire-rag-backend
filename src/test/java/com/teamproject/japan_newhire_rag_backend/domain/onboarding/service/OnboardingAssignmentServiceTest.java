@@ -416,7 +416,7 @@ class OnboardingAssignmentServiceTest {
                         Set.of(RoleType.MANAGER),
                         10L,
                         1,
-                        EmployeeType.REGULAR));
+                        EmployeeType.GENERAL));
     }
 
     private void stubHrManager() {
