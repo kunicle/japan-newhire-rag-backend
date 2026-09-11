@@ -17,8 +17,10 @@ import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dt
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingCompletionRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingManagementItemResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingManagementPageResponse;
+import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingTaskPageResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.service.OnboardingAssignmentService;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.service.OnboardingManagementService;
+import com.teamproject.japan_newhire_rag_backend.domain.onboarding.service.OnboardingTaskService;
 
 import jakarta.validation.Valid;
 
@@ -29,13 +31,16 @@ public class OnboardingManagementController {
 
     private final OnboardingManagementService managementService;
     private final OnboardingAssignmentService assignmentService;
+    private final OnboardingTaskService taskService;
 
     public OnboardingManagementController(
             OnboardingManagementService managementService,
-            OnboardingAssignmentService assignmentService
+            OnboardingAssignmentService assignmentService,
+            OnboardingTaskService taskService
     ) {
         this.managementService = managementService;
         this.assignmentService = assignmentService;
+        this.taskService = taskService;
     }
 
     @GetMapping("/progress")
@@ -48,6 +53,15 @@ public class OnboardingManagementController {
                 employeeId,
                 page,
                 size);
+    }
+
+    @GetMapping("/tasks")
+    @PreAuthorize("hasRole('MANAGER')")
+    public OnboardingTaskPageResponse getManagedTasks(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return taskService.getManagedTasks(page, size);
     }
 
     @PostMapping("/tasks/{taskId}/assignments")
