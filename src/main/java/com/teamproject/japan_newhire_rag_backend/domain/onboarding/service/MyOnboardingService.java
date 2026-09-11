@@ -2,8 +2,8 @@ package com.teamproject.japan_newhire_rag_backend.domain.onboarding.service;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.List;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,11 +13,11 @@ import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessExcept
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserContext;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProvider;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.MyOnboardingResponse;
-import com.teamproject.japan_newhire_rag_backend.domain.onboarding.repository.OnboardingProgressRepository;
+import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingCompletionRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.entity.OnboardingAssignment;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.entity.OnboardingProgress;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.enums.OnboardingAssignmentStatus;
-import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingCompletionRequest;
+import com.teamproject.japan_newhire_rag_backend.domain.onboarding.repository.OnboardingProgressRepository;
 
 @Service
 public class MyOnboardingService {
@@ -43,9 +43,9 @@ public class MyOnboardingService {
 
         LocalDate today = LocalDate.now(clock);
 
-        return progressRepository
-                .findByOnboardingAssignment_EmployeeIdOrderByOnboardingAssignment_DueDateAsc(
-                        currentUser.employeeId())
+                return progressRepository
+                        .findByOnboardingAssignment_EmployeeIdAndOnboardingAssignment_OnboardingTask_ActiveTrueOrderByOnboardingAssignment_DueDateAsc(
+                                currentUser.employeeId())
                 .stream()
                 .map(progress
                         -> MyOnboardingResponse.from(
@@ -70,6 +70,7 @@ public class MyOnboardingService {
         validateOwner(
                 currentUser.employeeId(),
                 assignment);
+        validateActiveTask(assignment);
         validateStartableAssignment(assignment);
 
         progress.start();
@@ -97,6 +98,7 @@ public class MyOnboardingService {
         validateOwner(
                 currentUser.employeeId(),
                 assignment);
+        validateActiveTask(assignment);
         validateCompletableAssignment(assignment);
 
         try {
@@ -137,6 +139,16 @@ public class MyOnboardingService {
                     "Only the assigned employee can update onboarding progress");
         }
     }
+
+        private void validateActiveTask(
+                OnboardingAssignment assignment
+        ) {
+        if (!assignment.getOnboardingTask().isActive()) {
+                throw new BusinessException(
+                        ErrorCode.CONFLICT,
+                        "Inactive onboarding task cannot be started or completed");
+        }
+        }
 
     private void validateStartableAssignment(
             OnboardingAssignment assignment

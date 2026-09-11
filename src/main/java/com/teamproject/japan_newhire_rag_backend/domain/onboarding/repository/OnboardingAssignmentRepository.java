@@ -14,4 +14,7 @@ public interface OnboardingAssignmentRepository
             findByOnboardingTask_OnboardingTaskIdAndEmployeeIdIn(
                     Long onboardingTaskId,
                     Collection<Long> employeeIds);
+
+    List<OnboardingAssignment>
+            findByOnboardingTask_OnboardingTaskId(Long onboardingTaskId);
 }

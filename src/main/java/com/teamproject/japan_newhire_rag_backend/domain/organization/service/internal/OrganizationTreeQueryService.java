@@ -1,8 +1,5 @@
 package com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal;
 
-import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationStatus;
-import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationType;
-import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.ManagerRelationRepository;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -20,9 +17,12 @@ import com.teamproject.japan_newhire_rag_backend.domain.organization.controller.
 import com.teamproject.japan_newhire_rag_backend.domain.organization.controller.dto.OrganizationResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.Department;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.Employee;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationStatus;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationType;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.error.OrganizationErrorCode;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.DepartmentRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.EmployeeRepository;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.ManagerRelationRepository;
 
 @Service
 @Transactional(readOnly = true)
@@ -180,6 +180,7 @@ public class OrganizationTreeQueryService {
                 employee.getJobGrade().getGradeName(),
                 employee.getJobGrade().getGradeLevel(),
                 employee.getHireDate(),
+                employee.getEmployeeType().name(),
                 employee.getDepartment().getDepartmentName(),
                 managerEmployeeId);
     }
