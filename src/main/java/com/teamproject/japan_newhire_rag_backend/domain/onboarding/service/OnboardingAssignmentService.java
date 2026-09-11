@@ -60,16 +60,64 @@ public class OnboardingAssignmentService {
         validateTaskId(onboardingTaskId);
         validateRequest(request);
 
-        OnboardingTask task = findTask(onboardingTaskId);
-        validateActiveTask(task);
+        Set<Long> normalizedEmployeeIds =
+                new LinkedHashSet<>(request.employeeIds());
 
-        List<Long> requestedEmployeeIds =
-                request.employeeIds();
-        int requestedCount = requestedEmployeeIds.size();
+        return assignValidated(
+                onboardingTaskId,
+                request.employeeIds().size(),
+                normalizedEmployeeIds,
+                currentUser.appUserId());
+    }
+
+    @Transactional
+    public OnboardingAssignmentCreateResponse assignManaged(
+            Long onboardingTaskId,
+            OnboardingAssignmentCreateRequest request
+    ) {
+        CurrentUserContext currentUser =
+                validateCurrentManager();
+        validateTaskId(onboardingTaskId);
+        validateRequest(request);
 
         Set<Long> normalizedEmployeeIds =
-                new LinkedHashSet<>(requestedEmployeeIds);
+                new LinkedHashSet<>(request.employeeIds());
+        validateManagedEmployees(
+                currentUser.employeeId(),
+                normalizedEmployeeIds);
 
+        return assignValidated(
+                onboardingTaskId,
+                request.employeeIds().size(),
+                normalizedEmployeeIds,
+                currentUser.appUserId());
+    }
+
+    @Transactional
+    public void cancel(Long onboardingAssignmentId) {
+        validateCurrentHrManager();
+        validateAssignmentId(onboardingAssignmentId);
+
+        OnboardingAssignment assignment =
+                findAssignment(onboardingAssignmentId);
+
+        try {
+            assignment.cancel();
+        } catch (IllegalStateException exception) {
+            throw new BusinessException(
+                    ErrorCode.CONFLICT,
+                    exception.getMessage());
+        }
+    }
+
+    private OnboardingAssignmentCreateResponse assignValidated(
+            Long onboardingTaskId,
+            int requestedCount,
+            Set<Long> normalizedEmployeeIds,
+            Long assignedBy
+    ) {
+        OnboardingTask task = findTask(onboardingTaskId);
+        validateActiveTask(task);
         validateNewHireEmployees(normalizedEmployeeIds);
 
         Set<Long> existingEmployeeIds =
@@ -91,7 +139,7 @@ public class OnboardingAssignmentService {
             createAssignments(
                     task,
                     assignableEmployeeIds,
-                    currentUser.appUserId());
+                    assignedBy);
         }
 
         int successCount = assignableEmployeeIds.size();
@@ -102,23 +150,6 @@ public class OnboardingAssignmentService {
                 requestedCount,
                 successCount,
                 duplicateCount);
-    }
-
-    @Transactional
-    public void cancel(Long onboardingAssignmentId) {
-        validateCurrentHrManager();
-        validateAssignmentId(onboardingAssignmentId);
-
-        OnboardingAssignment assignment =
-                findAssignment(onboardingAssignmentId);
-
-        try {
-                assignment.cancel();
-        } catch (IllegalStateException exception) {
-                throw new BusinessException(
-                        ErrorCode.CONFLICT,
-                        exception.getMessage());
-        }
     }
 
     private void createAssignments(
@@ -152,6 +183,24 @@ public class OnboardingAssignmentService {
         progressRepository.saveAll(progresses);
     }
 
+    private void validateManagedEmployees(
+            Long managerEmployeeId,
+            Set<Long> requestedEmployeeIds
+    ) {
+        Set<Long> managedEmployeeIds =
+                Set.copyOf(
+                        organizationQueryService
+                                .findManagedEmployeeIds(
+                                        managerEmployeeId));
+
+        if (!managedEmployeeIds.containsAll(
+                requestedEmployeeIds)) {
+            throw new BusinessException(
+                    ErrorCode.FORBIDDEN,
+                    "Employee is outside the manager's scope");
+        }
+    }
+
     private void validateNewHireEmployees(
             Set<Long> requestedEmployeeIds
     ) {
@@ -169,20 +218,20 @@ public class OnboardingAssignmentService {
     }
 
     private OnboardingAssignment findAssignment(
-        Long onboardingAssignmentId
+            Long onboardingAssignmentId
     ) {
         return assignmentRepository
                 .findById(onboardingAssignmentId)
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.RESOURCE_NOT_FOUND,
                         "Onboarding assignment not found"));
-        }
+    }
 
-        private OnboardingTask findTask(Long onboardingTaskId) {
-                return taskRepository.findById(onboardingTaskId)
-                        .orElseThrow(() -> new BusinessException(
-                                ErrorCode.RESOURCE_NOT_FOUND,
-                                "Onboarding task not found"));
+    private OnboardingTask findTask(Long onboardingTaskId) {
+        return taskRepository.findById(onboardingTaskId)
+                .orElseThrow(() -> new BusinessException(
+                        ErrorCode.RESOURCE_NOT_FOUND,
+                        "Onboarding task not found"));
     }
 
     private void validateActiveTask(OnboardingTask task) {
@@ -195,13 +244,7 @@ public class OnboardingAssignmentService {
 
     private CurrentUserContext validateCurrentHrManager() {
         CurrentUserContext currentUser =
-                currentUserProvider.getCurrentUser();
-
-        if (currentUser == null
-                || currentUser.appUserId() == null) {
-            throw new BusinessException(
-                    ErrorCode.UNAUTHORIZED);
-        }
+                validateAuthenticatedUser();
 
         if (!currentUser.roles()
                 .contains(RoleType.HR_MANAGER)) {
@@ -212,14 +255,41 @@ public class OnboardingAssignmentService {
         return currentUser;
     }
 
+    private CurrentUserContext validateCurrentManager() {
+        CurrentUserContext currentUser =
+                validateAuthenticatedUser();
+
+        if (currentUser.employeeId() == null
+                || !currentUser.roles()
+                        .contains(RoleType.MANAGER)) {
+            throw new BusinessException(
+                    ErrorCode.FORBIDDEN);
+        }
+
+        return currentUser;
+    }
+
+    private CurrentUserContext validateAuthenticatedUser() {
+        CurrentUserContext currentUser =
+                currentUserProvider.getCurrentUser();
+
+        if (currentUser == null
+                || currentUser.appUserId() == null) {
+            throw new BusinessException(
+                    ErrorCode.UNAUTHORIZED);
+        }
+
+        return currentUser;
+    }
+
     private void validateAssignmentId(
-                Long onboardingAssignmentId
+            Long onboardingAssignmentId
     ) {
         if (onboardingAssignmentId == null
                 || onboardingAssignmentId <= 0) {
-                throw new BusinessException(
-                        ErrorCode.INVALID_REQUEST,
-                        "Onboarding assignment ID must be positive");
+            throw new BusinessException(
+                    ErrorCode.INVALID_REQUEST,
+                    "Onboarding assignment ID must be positive");
         }
     }
 
