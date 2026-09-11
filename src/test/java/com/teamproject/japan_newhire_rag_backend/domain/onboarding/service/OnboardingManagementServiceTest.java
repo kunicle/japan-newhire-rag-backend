@@ -74,6 +74,50 @@ class OnboardingManagementServiceTest {
     }
 
     @Test
+    void managerGetsOnlyDirectNewHiresForAssignment() {
+        stubCurrentUser(
+                MANAGER_EMPLOYEE_ID,
+                Set.of(RoleType.MANAGER));
+        when(organizationQueryService.findManagedEmployeeIds(
+                MANAGER_EMPLOYEE_ID))
+                .thenReturn(List.of(TARGET_EMPLOYEE_ID, 20L));
+        when(organizationQueryService
+                .findValidNewHireEmployeeIds())
+                .thenReturn(List.of(TARGET_EMPLOYEE_ID, 30L));
+        when(organizationQueryService.findEmployeeSummaries(
+                Set.of(TARGET_EMPLOYEE_ID)))
+                .thenReturn(List.of(new EmployeeSummary(
+                        TARGET_EMPLOYEE_ID,
+                        "Employee A",
+                        20L,
+                        "Development",
+                        30L,
+                        "Junior")));
+
+        var response = service.getAssignableEmployees();
+
+        assertThat(response).hasSize(1);
+        assertThat(response.get(0).employeeId())
+                .isEqualTo(TARGET_EMPLOYEE_ID);
+        assertThat(response.get(0).employeeName())
+                .isEqualTo("Employee A");
+    }
+
+    @Test
+    void hrManagerCannotUseManagerAssignableEmployeeList() {
+        stubCurrentUser(200L, Set.of(RoleType.HR_MANAGER));
+
+        assertThatThrownBy(service::getAssignableEmployees)
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(
+                                exception.getErrorCode())
+                                .isEqualTo(ErrorCode.FORBIDDEN));
+
+        verifyNoInteractions(organizationQueryService);
+    }
+
+    @Test
     void hrManagerGetsAllEmployeesProgress() {
         stubCurrentUser(200L, Set.of(RoleType.HR_MANAGER));
         OnboardingProgress progress =
