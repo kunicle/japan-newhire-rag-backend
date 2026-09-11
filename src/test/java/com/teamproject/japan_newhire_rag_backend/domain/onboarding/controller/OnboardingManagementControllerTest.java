@@ -17,8 +17,10 @@ import org.springframework.http.ResponseEntity;
 
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingAssignmentCreateRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingAssignmentCreateResponse;
+import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingTaskPageResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.service.OnboardingAssignmentService;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.service.OnboardingManagementService;
+import com.teamproject.japan_newhire_rag_backend.domain.onboarding.service.OnboardingTaskService;
 
 @ExtendWith(MockitoExtension.class)
 class OnboardingManagementControllerTest {
@@ -29,13 +31,36 @@ class OnboardingManagementControllerTest {
     @Mock
     private OnboardingAssignmentService assignmentService;
 
+    @Mock
+    private OnboardingTaskService taskService;
+
     private OnboardingManagementController controller;
 
     @BeforeEach
     void setUp() {
         controller = new OnboardingManagementController(
                 managementService,
-                assignmentService);
+                assignmentService,
+                taskService);
+    }
+
+    @Test
+    void getManagedTasksReturnsActiveTaskPage() {
+        OnboardingTaskPageResponse expected =
+                new OnboardingTaskPageResponse(
+                        List.of(),
+                        0,
+                        20,
+                        0,
+                        0,
+                        true,
+                        true);
+
+        when(taskService.getManagedTasks(0, 20))
+                .thenReturn(expected);
+
+        assertSame(expected, controller.getManagedTasks(0, 20));
+        verify(taskService).getManagedTasks(0, 20);
     }
 
     @Test
