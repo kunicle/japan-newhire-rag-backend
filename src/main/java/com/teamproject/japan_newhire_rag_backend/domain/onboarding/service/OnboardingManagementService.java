@@ -3,8 +3,10 @@ package com.teamproject.japan_newhire_rag_backend.domain.onboarding.service;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -19,6 +21,7 @@ import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessExcept
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserContext;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProvider;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.RoleType;
+import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingAssignableEmployeeResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingCompletionRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingManagementItemResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingManagementPageResponse;
@@ -53,6 +56,32 @@ public class OnboardingManagementService {
         this.organizationQueryService = organizationQueryService;
         this.currentUserProvider = currentUserProvider;
         this.clock = clock;
+    }
+
+    @Transactional(readOnly = true)
+    public List<OnboardingAssignableEmployeeResponse>
+            getAssignableEmployees() {
+        CurrentUserContext actor = getCurrentDirectManager();
+
+        Set<Long> employeeIds = new LinkedHashSet<>(
+                organizationQueryService.findManagedEmployeeIds(
+                        actor.employeeId()));
+        Set<Long> validNewHireEmployeeIds = Set.copyOf(
+                organizationQueryService
+                        .findValidNewHireEmployeeIds());
+        employeeIds.retainAll(validNewHireEmployeeIds);
+
+        if (employeeIds.isEmpty()) {
+            return List.of();
+        }
+
+        return organizationQueryService
+                .findEmployeeSummaries(employeeIds)
+                .stream()
+                .map(OnboardingAssignableEmployeeResponse::from)
+                .sorted(java.util.Comparator.comparing(
+                        OnboardingAssignableEmployeeResponse::employeeName))
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -267,6 +296,25 @@ public class OnboardingManagementService {
             throw new BusinessException(
                     ErrorCode.FORBIDDEN,
                     "HR manager or manager role is required");
+        }
+
+        return currentUser;
+    }
+
+    private CurrentUserContext getCurrentDirectManager() {
+        CurrentUserContext currentUser =
+                currentUserProvider.getCurrentUser();
+
+        if (currentUser == null
+                || currentUser.appUserId() == null) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (currentUser.employeeId() == null
+                || !currentUser.roles().contains(RoleType.MANAGER)) {
+            throw new BusinessException(
+                    ErrorCode.FORBIDDEN,
+                    "Manager role is required");
         }
 
         return currentUser;
