@@ -1,17 +1,23 @@
 package com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingAssignmentCreateRequest;
+import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingAssignmentCreateResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingCompletionRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingManagementItemResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingManagementPageResponse;
+import com.teamproject.japan_newhire_rag_backend.domain.onboarding.service.OnboardingAssignmentService;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.service.OnboardingManagementService;
 
 import jakarta.validation.Valid;
@@ -22,11 +28,14 @@ import jakarta.validation.Valid;
 public class OnboardingManagementController {
 
     private final OnboardingManagementService managementService;
+    private final OnboardingAssignmentService assignmentService;
 
     public OnboardingManagementController(
-            OnboardingManagementService managementService
+            OnboardingManagementService managementService,
+            OnboardingAssignmentService assignmentService
     ) {
         this.managementService = managementService;
+        this.assignmentService = assignmentService;
     }
 
     @GetMapping("/progress")
@@ -39,6 +48,19 @@ public class OnboardingManagementController {
                 employeeId,
                 page,
                 size);
+    }
+
+    @PostMapping("/tasks/{taskId}/assignments")
+    public ResponseEntity<OnboardingAssignmentCreateResponse>
+            assignManaged(
+                    @PathVariable Long taskId,
+                    @Valid @RequestBody
+                    OnboardingAssignmentCreateRequest request
+            ) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(assignmentService.assignManaged(
+                        taskId,
+                        request));
     }
 
     @PatchMapping("/assignments/{assignmentId}/start")
