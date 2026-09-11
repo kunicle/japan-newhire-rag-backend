@@ -51,6 +51,7 @@ public class OnboardingManagementController {
     }
 
     @PostMapping("/tasks/{taskId}/assignments")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<OnboardingAssignmentCreateResponse>
             assignManaged(
                     @PathVariable Long taskId,
