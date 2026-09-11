@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingAssignableEmployeeResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingAssignmentCreateRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingAssignmentCreateResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingTaskPageResponse;
@@ -42,6 +43,24 @@ class OnboardingManagementControllerTest {
                 managementService,
                 assignmentService,
                 taskService);
+    }
+
+    @Test
+    void getAssignableEmployeesReturnsDirectNewHires() {
+        List<OnboardingAssignableEmployeeResponse> expected =
+                List.of(new OnboardingAssignableEmployeeResponse(
+                        101L,
+                        "New Hire",
+                        10L,
+                        "Development",
+                        1L,
+                        "Junior"));
+
+        when(managementService.getAssignableEmployees())
+                .thenReturn(expected);
+
+        assertSame(expected, controller.getAssignableEmployees());
+        verify(managementService).getAssignableEmployees();
     }
 
     @Test
