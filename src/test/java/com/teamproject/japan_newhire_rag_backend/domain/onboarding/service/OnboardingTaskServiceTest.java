@@ -181,6 +181,49 @@ class OnboardingTaskServiceTest {
     }
 
     @Test
+    void managerGetsOnlyActiveTaskCatalog() {
+        stubManager();
+        OnboardingTask activeTask = createTask();
+        when(onboardingTaskRepository
+                .findByActiveTrue(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(
+                        List.of(activeTask),
+                        PageRequest.of(0, 20),
+                        1));
+
+        OnboardingTaskPageResponse response =
+                onboardingTaskService.getManagedTasks(0, 20);
+
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.content().get(0).active()).isTrue();
+        verify(onboardingTaskRepository)
+                .findByActiveTrue(any(Pageable.class));
+    }
+
+    @Test
+    void employeeCannotGetManagerTaskCatalog() {
+        when(currentUserProvider.getCurrentUser())
+                .thenReturn(new CurrentUserContext(
+                        100L,
+                        200L,
+                        Set.of(RoleType.EMPLOYEE),
+                        10L,
+                        1,
+                        EmployeeType.GENERAL));
+
+        assertThatThrownBy(() ->
+                onboardingTaskService.getManagedTasks(0, 20))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(
+                        ((BusinessException) exception)
+                                .getErrorCode())
+                        .isEqualTo(ErrorCode.FORBIDDEN));
+
+        verify(onboardingTaskRepository, never())
+                .findByActiveTrue(any(Pageable.class));
+    }
+
+    @Test
     void taskListUsesNewestFirstStableSort() {
         stubHrManager();
         when(onboardingTaskRepository.findAll(any(Pageable.class)))
@@ -379,6 +422,17 @@ class OnboardingTaskServiceTest {
         assertThat(firstResponse.active()).isFalse();
         assertThat(secondResponse.active()).isFalse();
         assertThat(task.isActive()).isFalse();
+    }
+
+    private void stubManager() {
+        when(currentUserProvider.getCurrentUser())
+                .thenReturn(new CurrentUserContext(
+                        100L,
+                        200L,
+                        Set.of(RoleType.MANAGER),
+                        10L,
+                        1,
+                        EmployeeType.GENERAL));
     }
 
     private void stubHrManager() {

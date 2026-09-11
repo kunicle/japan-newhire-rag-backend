@@ -166,6 +166,97 @@ class OnboardingAssignmentServiceTest {
                 progresses.get(1).getOnboardingAssignment());
     }
 
+
+    @Test
+    void assignManagedCreatesAssignmentsForDirectNewHires() {
+        stubManager();
+
+        when(organizationQueryService
+                .findManagedEmployeeIds(200L))
+                .thenReturn(List.of(1L, 2L));
+        when(taskRepository.findById(10L))
+                .thenReturn(Optional.of(activeTask()));
+        when(organizationQueryService
+                .findValidNewHireEmployeeIds())
+                .thenReturn(List.of(1L, 2L));
+        when(assignmentRepository
+                .findByOnboardingTask_OnboardingTaskIdAndEmployeeIdIn(
+                        10L,
+                        Set.of(1L, 2L)))
+                .thenReturn(List.of());
+        when(assignmentRepository.saveAll(anyList()))
+                .thenAnswer(invocation ->
+                        invocation.getArgument(0));
+
+        OnboardingAssignmentCreateResponse response =
+                service.assignManaged(
+                        10L,
+                        new OnboardingAssignmentCreateRequest(
+                                List.of(1L, 2L)));
+
+        assertEquals(2, response.requestedCount());
+        assertEquals(2, response.successCount());
+        assertEquals(0, response.duplicateCount());
+
+        verify(assignmentRepository)
+                .saveAll(assignmentListCaptor.capture());
+        assertTrue(assignmentListCaptor.getValue().stream()
+                .allMatch(assignment ->
+                        assignment.getAssignedBy().equals(100L)));
+        verify(progressRepository).saveAll(anyList());
+    }
+
+    @Test
+    void assignManagedRejectsEmployeeOutsideManagerScope() {
+        stubManager();
+
+        when(organizationQueryService
+                .findManagedEmployeeIds(200L))
+                .thenReturn(List.of(1L));
+
+        BusinessException exception =
+                assertThrows(
+                        BusinessException.class,
+                        () -> service.assignManaged(
+                                10L,
+                                new OnboardingAssignmentCreateRequest(
+                                        List.of(1L, 999L))));
+
+        assertEquals(
+                ErrorCode.FORBIDDEN,
+                exception.getErrorCode());
+
+        verifyNoInteractions(
+                taskRepository,
+                assignmentRepository,
+                progressRepository);
+        verify(organizationQueryService, never())
+                .findValidNewHireEmployeeIds();
+    }
+
+    @Test
+    void assignManagedRejectsHrManagerWithoutManagerRole() {
+        stubHrManager();
+
+        BusinessException exception =
+                assertThrows(
+                        BusinessException.class,
+                        () -> service.assignManaged(
+                                10L,
+                                new OnboardingAssignmentCreateRequest(
+                                        List.of(1L))));
+
+        assertEquals(
+                ErrorCode.FORBIDDEN,
+                exception.getErrorCode());
+
+        verifyNoInteractions(
+                taskRepository,
+                organizationQueryService,
+                assignmentRepository,
+                progressRepository);
+    }
+
     @Test
     void assignRejectsInactiveTask() {
         stubHrManager();
@@ -314,6 +405,18 @@ class OnboardingAssignmentServiceTest {
                 organizationQueryService,
                 assignmentRepository,
                 progressRepository);
+    }
+
+
+    private void stubManager() {
+        when(currentUserProvider.getCurrentUser())
+                .thenReturn(new CurrentUserContext(
+                        100L,
+                        200L,
+                        Set.of(RoleType.MANAGER),
+                        10L,
+                        1,
+                        EmployeeType.GENERAL));
     }
 
     private void stubHrManager() {

@@ -82,6 +82,26 @@ public class OnboardingTaskService {
     }
 
     @Transactional(readOnly = true)
+    public OnboardingTaskPageResponse getManagedTasks(
+            int page,
+            int size
+    ) {
+        validateCurrentManager();
+        validatePageRequest(page, size);
+
+        PageRequest pageRequest = PageRequest.of(
+                page,
+                size,
+                TASK_LIST_SORT);
+        Page<OnboardingTaskResponse> taskPage =
+                onboardingTaskRepository
+                        .findByActiveTrue(pageRequest)
+                        .map(OnboardingTaskResponse::from);
+
+        return OnboardingTaskPageResponse.from(taskPage);
+    }
+
+    @Transactional(readOnly = true)
     public OnboardingTaskResponse getTask(Long taskId) {
         validateCurrentHrManager();
         validateTaskId(taskId);
@@ -149,6 +169,26 @@ public class OnboardingTaskService {
 
         if (!currentUser.roles()
                 .contains(RoleType.HR_MANAGER)) {
+            throw new BusinessException(
+                    ErrorCode.FORBIDDEN);
+        }
+
+        return currentUser;
+    }
+
+    private CurrentUserContext validateCurrentManager() {
+        CurrentUserContext currentUser =
+                currentUserProvider.getCurrentUser();
+
+        if (currentUser == null
+                || currentUser.appUserId() == null) {
+            throw new BusinessException(
+                    ErrorCode.UNAUTHORIZED);
+        }
+
+        if (currentUser.employeeId() == null
+                || !currentUser.roles()
+                        .contains(RoleType.MANAGER)) {
             throw new BusinessException(
                     ErrorCode.FORBIDDEN);
         }
