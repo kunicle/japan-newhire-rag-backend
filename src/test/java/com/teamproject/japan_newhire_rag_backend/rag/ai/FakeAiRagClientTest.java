@@ -8,6 +8,8 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.teamproject.japan_newhire_rag_backend.rag.RagAnswerStatus;
+
 class FakeAiRagClientTest {
 
     private final FakeAiRagClient client = new FakeAiRagClient();
@@ -61,7 +63,7 @@ class FakeAiRagClientTest {
 
     @Test
     void generateReturnsRegisteredResponse() {
-        AiRagGenerateResponse response = new AiRagGenerateResponse("등록 답변", List.of(10L));
+        AiRagGenerateResponse response = answered("등록 답변", List.of(10L));
         client.registerGenerateResponse("휴가 규정", response);
 
         assertSame(response, client.generate(createGenerateRequest("휴가 규정")));
@@ -69,7 +71,7 @@ class FakeAiRagClientTest {
 
     @Test
     void generateReturnsDefaultResponse() {
-        AiRagGenerateResponse response = new AiRagGenerateResponse("기본 답변", List.of());
+        AiRagGenerateResponse response = answered("기본 답변", List.of());
         client.setDefaultGenerateResponse(response);
 
         assertSame(response, client.generate(createGenerateRequest("미등록 질문")));
@@ -90,7 +92,7 @@ class FakeAiRagClientTest {
 
     @Test
     void registerGenerateResponseRejectsNullValues() {
-        AiRagGenerateResponse response = new AiRagGenerateResponse("답변", List.of());
+        AiRagGenerateResponse response = answered("답변", List.of());
 
         assertThrows(IllegalArgumentException.class,
                 () -> client.registerGenerateResponse(null, response));
@@ -100,7 +102,7 @@ class FakeAiRagClientTest {
 
     @Test
     void generateCountsEveryCall() {
-        client.setDefaultGenerateResponse(new AiRagGenerateResponse("답변", List.of()));
+        client.setDefaultGenerateResponse(answered("답변", List.of()));
 
         client.generate(createGenerateRequest("질문 1"));
         client.generate(createGenerateRequest("질문 2"));
@@ -120,7 +122,7 @@ class FakeAiRagClientTest {
 
     @Test
     void generateStoresLastRequest() {
-        client.setDefaultGenerateResponse(new AiRagGenerateResponse("답변", List.of()));
+        client.setDefaultGenerateResponse(answered("답변", List.of()));
         AiRagGenerateRequest firstRequest = createGenerateRequest("질문 1");
         AiRagGenerateRequest lastRequest = createGenerateRequest("질문 2");
 
@@ -132,6 +134,10 @@ class FakeAiRagClientTest {
 
     private AiRagSearchRequest createSearchRequest(String question) {
         return new AiRagSearchRequest(question, List.of(1L), "provider-a", "model-a");
+    }
+
+    private AiRagGenerateResponse answered(String answer, List<Long> citations) {
+        return new AiRagGenerateResponse(RagAnswerStatus.ANSWERED, answer, citations);
     }
 
     private AiRagGenerateRequest createGenerateRequest(String question) {

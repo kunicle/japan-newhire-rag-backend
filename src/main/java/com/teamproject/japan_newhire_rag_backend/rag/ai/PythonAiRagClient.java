@@ -6,6 +6,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.teamproject.japan_newhire_rag_backend.rag.RagAnswerStatus;
 
 public class PythonAiRagClient implements AiRagCallMetadataClient {
 
@@ -134,11 +135,12 @@ public class PythonAiRagClient implements AiRagCallMetadataClient {
     }
 
     private record GenerateHttpResponse(
+            RagAnswerStatus status,
             String answer,
-            @JsonProperty("cited_chunk_ids") List<Long> citedChunkIds) {
+            List<Long> citations) {
 
         private AiRagGenerateResponse toDomain() {
-            return new AiRagGenerateResponse(answer, citedChunkIds);
+            return new AiRagGenerateResponse(status, answer, citations);
         }
     }
 }

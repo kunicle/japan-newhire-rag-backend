@@ -10,6 +10,7 @@ import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserCont
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProvider;
 import com.teamproject.japan_newhire_rag_backend.domain.system.error.api.SystemErrorRecordCommand;
 import com.teamproject.japan_newhire_rag_backend.domain.system.error.api.SystemErrorRecordService;
+import com.teamproject.japan_newhire_rag_backend.rag.RagAnswerStatus;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.AiHttpAttempt;
 import com.teamproject.japan_newhire_rag_backend.rag.orchestration.ExternalAiCallException;
 import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagGenerationOrchestrationResult;
@@ -28,12 +29,13 @@ public class RagQueryExecutionService {
 
     private static final String FAILURE_TYPE_NO_ACCESSIBLE_DOCUMENT =
             "NO_ACCESSIBLE_DOCUMENT";
-    private static final String FAILURE_TYPE_LOW_SIMILARITY = "LOW_SIMILARITY";
+    private static final String FAILURE_TYPE_INSUFFICIENT_EVIDENCE =
+            "INSUFFICIENT_EVIDENCE";
     private static final String FAILURE_TYPE_API_ERROR = "API_ERROR";
 
     private static final String FAILURE_REASON_NO_ACCESSIBLE_DOCUMENT =
             "접근 가능한 규정 문서가 없습니다.";
-    private static final String FAILURE_REASON_LOW_SIMILARITY =
+    private static final String FAILURE_REASON_INSUFFICIENT_EVIDENCE =
             "답변을 생성할 충분한 근거를 찾지 못했습니다.";
     private static final String FAILURE_REASON_API_ERROR =
             "외부 AI 서비스 호출에 실패했습니다.";
@@ -81,7 +83,7 @@ public class RagQueryExecutionService {
                     ragQuestion,
                     FAILURE_TYPE_NO_ACCESSIBLE_DOCUMENT,
                     FAILURE_REASON_NO_ACCESSIBLE_DOCUMENT);
-            return new RagQueryResult(false, null, List.of(), List.of());
+            return insufficientEvidenceResult();
         }
 
         RagSearchPlan plan = planOptional.get();
@@ -112,12 +114,12 @@ public class RagQueryExecutionService {
         RagSearch ragSearch = ragPersistenceService.persistSearch(
                 ragQuestion, plan.aiModelId(), persistenceItems);
 
-        if (!searchResult.hasSufficientEvidence()) {
+        if (searchResult.verifiedSearchResults().isEmpty()) {
             ragPersistenceService.markQuestionRejected(
                     ragQuestion,
-                    FAILURE_TYPE_LOW_SIMILARITY,
-                    FAILURE_REASON_LOW_SIMILARITY);
-            return new RagQueryResult(false, null, List.of(), List.of());
+                    FAILURE_TYPE_INSUFFICIENT_EVIDENCE,
+                    FAILURE_REASON_INSUFFICIENT_EVIDENCE);
+            return insufficientEvidenceResult();
         }
 
         RagGenerationOrchestrationResult generationResult;
@@ -132,15 +134,30 @@ public class RagQueryExecutionService {
             throw exception.getOriginalFailure();
         }
         recordAttempts(ragQuestion, plan.aiModelId(), "RAG_GENERATE", generationResult.apiAttempts());
+        if (generationResult.status() == RagAnswerStatus.INSUFFICIENT_EVIDENCE) {
+            ragPersistenceService.markQuestionRejected(
+                    ragQuestion,
+                    FAILURE_TYPE_INSUFFICIENT_EVIDENCE,
+                    FAILURE_REASON_INSUFFICIENT_EVIDENCE);
+            return insufficientEvidenceResult();
+        }
         List<RagCitationSnapshot> citations = ragPersistenceService.persistAnswer(
                 ragSearch, generationResult.answer(), generationResult.validCitedChunkIds());
         ragPersistenceService.markQuestionAnswered(ragQuestion);
 
         return new RagQueryResult(
-                true,
+                RagAnswerStatus.ANSWERED,
                 generationResult.answer(),
                 generationResult.validCitedChunkIds(),
                 citations);
+    }
+
+    private RagQueryResult insufficientEvidenceResult() {
+        return new RagQueryResult(
+                RagAnswerStatus.INSUFFICIENT_EVIDENCE,
+                null,
+                List.of(),
+                List.of());
     }
 
     private void recordFailure(
