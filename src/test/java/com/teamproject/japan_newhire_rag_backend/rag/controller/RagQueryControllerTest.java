@@ -33,6 +33,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
+import com.teamproject.japan_newhire_rag_backend.rag.RagAnswerStatus;
+
 import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCode;
 import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessException;
 import com.teamproject.japan_newhire_rag_backend.common.exception.GlobalExceptionHandler;
@@ -98,7 +100,7 @@ class RagQueryControllerTest {
         authenticateAs(RoleType.EMPLOYEE);
         when(ragQueryExecutionService.execute("질문"))
                 .thenReturn(new RagQueryResult(
-                        true,
+                        RagAnswerStatus.ANSWERED,
                         "답변",
                         List.of(101L, 102L),
                         List.of(
@@ -109,7 +111,8 @@ class RagQueryControllerTest {
 
         mockMvc.perform(authenticatedQuestionRequest("{\"question\":\"질문\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.hasSufficientEvidence").value(true))
+                .andExpect(jsonPath("$.status").value("ANSWERED"))
+                .andExpect(jsonPath("$.hasSufficientEvidence").doesNotExist())
                 .andExpect(jsonPath("$.answer").value("답변"))
                 .andExpect(jsonPath("$.validCitedChunkIds").isArray())
                 .andExpect(jsonPath("$.validCitedChunkIds.length()").value(2))
@@ -131,7 +134,8 @@ class RagQueryControllerTest {
     void hrManagerCanExecuteRagQuery() throws Exception {
         authenticateAs(RoleType.HR_MANAGER);
         when(ragQueryExecutionService.execute("질문"))
-                .thenReturn(new RagQueryResult(true, "답변", List.of(), List.of()));
+                .thenReturn(new RagQueryResult(
+                        RagAnswerStatus.ANSWERED, "답변", List.of(), List.of()));
 
         mockMvc.perform(authenticatedQuestionRequest("{\"question\":\"질문\"}"))
                 .andExpect(status().isOk());
@@ -143,11 +147,16 @@ class RagQueryControllerTest {
     void insufficientEvidenceIsReturnedAsSuccessfulBusinessResult() throws Exception {
         authenticateAs(RoleType.EMPLOYEE);
         when(ragQueryExecutionService.execute("질문"))
-                .thenReturn(new RagQueryResult(false, null, List.of(), List.of()));
+                .thenReturn(new RagQueryResult(
+                        RagAnswerStatus.INSUFFICIENT_EVIDENCE,
+                        null,
+                        List.of(),
+                        List.of()));
 
         mockMvc.perform(authenticatedQuestionRequest("{\"question\":\"질문\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.hasSufficientEvidence").value(false))
+                .andExpect(jsonPath("$.status").value("INSUFFICIENT_EVIDENCE"))
+                .andExpect(jsonPath("$.hasSufficientEvidence").doesNotExist())
                 .andExpect(jsonPath("$.answer").value(nullValue()))
                 .andExpect(jsonPath("$.validCitedChunkIds").isArray())
                 .andExpect(jsonPath("$.validCitedChunkIds").isEmpty())
@@ -193,7 +202,8 @@ class RagQueryControllerTest {
         authenticateAs(RoleType.EMPLOYEE);
         String question = "가".repeat(500);
         when(ragQueryExecutionService.execute(question))
-                .thenReturn(new RagQueryResult(true, "답변", List.of(), List.of()));
+                .thenReturn(new RagQueryResult(
+                        RagAnswerStatus.ANSWERED, "답변", List.of(), List.of()));
 
         mockMvc.perform(authenticatedQuestionRequest(
                         "{\"question\":\"" + question + "\"}"))

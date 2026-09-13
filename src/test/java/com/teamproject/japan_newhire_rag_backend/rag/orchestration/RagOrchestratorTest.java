@@ -14,6 +14,7 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
+import com.teamproject.japan_newhire_rag_backend.rag.RagAnswerStatus;
 import com.teamproject.japan_newhire_rag_backend.document.chunk.entity.DocumentChunk;
 import com.teamproject.japan_newhire_rag_backend.document.chunk.repository.DocumentChunkRepository;
 import com.teamproject.japan_newhire_rag_backend.document.version.entity.DocumentVersion;
@@ -23,12 +24,10 @@ import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagSearchResponse;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagSearchResultItem;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.FakeAiRagClient;
 import com.teamproject.japan_newhire_rag_backend.rag.citation.CitationValidator;
-import com.teamproject.japan_newhire_rag_backend.rag.evidence.EvidenceThresholdChecker;
 import com.teamproject.japan_newhire_rag_backend.rag.search.SearchResultVerifier;
 
 class RagOrchestratorTest {
 
-    private static final double EVIDENCE_THRESHOLD = 0.7;
     private static final String QUESTION = "휴가 규정";
     private static final String PROVIDER_NAME = "provider-a";
     private static final String MODEL_NAME = "model-a";
@@ -39,9 +38,7 @@ class RagOrchestratorTest {
     private final RagOrchestrator orchestrator = new RagOrchestrator(
             aiRagClient,
             new SearchResultVerifier(documentChunkRepository),
-            new EvidenceThresholdChecker(),
-            new CitationValidator(),
-            EVIDENCE_THRESHOLD);
+            new CitationValidator());
 
     @Test
     void rejectsNullRequiredSearchArguments() {
@@ -58,7 +55,7 @@ class RagOrchestratorTest {
     @Test
     void rejectsNullRequiredGenerateArguments() {
         RagSearchOrchestrationResult searchResult =
-                new RagSearchOrchestrationResult(true, List.of(createSearchResult(1L, 10L, 0.8)));
+                new RagSearchOrchestrationResult(List.of(createSearchResult(1L, 10L, 0.8)));
 
         assertThrows(IllegalArgumentException.class,
                 () -> orchestrator.generate(null, searchResult));
@@ -67,9 +64,9 @@ class RagOrchestratorTest {
     }
 
     @Test
-    void rejectsInsufficientEvidenceSearchResultWithoutCallingGenerate() {
+    void rejectsEmptyEvidenceSearchResultWithoutCallingGenerate() {
         RagSearchOrchestrationResult insufficientResult =
-                new RagSearchOrchestrationResult(false, List.of(createSearchResult(1L, 10L, 0.8)));
+                new RagSearchOrchestrationResult(List.of());
 
         IllegalStateException exception = assertThrows(IllegalStateException.class,
                 () -> orchestrator.generate(QUESTION, insufficientResult));
@@ -79,40 +76,34 @@ class RagOrchestratorTest {
     }
 
     @Test
-    void rejectsForgedSufficientFlagWhenActualEvidenceBelowThreshold() {
-        RagSearchOrchestrationResult forged =
-                new RagSearchOrchestrationResult(true, List.of(createSearchResult(1L, 10L, 0.5)));
-
-        assertThrows(IllegalStateException.class,
-                () -> orchestrator.generate(QUESTION, forged));
-
-        assertEquals(0, aiRagClient.getGenerateCallCount());
-    }
-
-    @Test
     void doesNotGenerateWhenSearchResultsAreEmpty() {
         aiRagClient.registerSearchResponse(QUESTION, new AiRagSearchResponse(List.of()));
 
         RagSearchOrchestrationResult result = search(Set.of(1L));
 
-        assertFalse(result.hasSufficientEvidence());
         assertTrue(result.verifiedSearchResults().isEmpty());
         assertEquals(0, aiRagClient.getGenerateCallCount());
     }
 
     @Test
-    void doesNotGenerateWhenEverySimilarityIsBelowThreshold() {
+    void generatesWhenEverySimilarityIsBelowLegacyThreshold() {
         List<AiRagSearchResultItem> searchResults = List.of(
                 createSearchResult(1L, 10L, 0.6),
                 createSearchResult(1L, 20L, 0.5));
         aiRagClient.registerSearchResponse(QUESTION, new AiRagSearchResponse(searchResults));
         stubMatchingChunks(searchResults);
+        aiRagClient.registerGenerateResponse(
+                QUESTION,
+                new AiRagGenerateResponse(
+                        RagAnswerStatus.ANSWERED, "근거 기반 답변", List.of(10L)));
 
         RagSearchOrchestrationResult result = search(Set.of(1L));
+        RagGenerationOrchestrationResult generationResult =
+                orchestrator.generate(QUESTION, result);
 
-        assertFalse(result.hasSufficientEvidence());
         assertEquals(searchResults, result.verifiedSearchResults());
-        assertEquals(0, aiRagClient.getGenerateCallCount());
+        assertEquals(RagAnswerStatus.ANSWERED, generationResult.status());
+        assertEquals(1, aiRagClient.getGenerateCallCount());
     }
 
     @Test
@@ -122,7 +113,6 @@ class RagOrchestratorTest {
 
         RagSearchOrchestrationResult result = search(Set.of(1L));
 
-        assertFalse(result.hasSufficientEvidence());
         assertTrue(result.verifiedSearchResults().isEmpty());
         assertEquals(0, aiRagClient.getGenerateCallCount());
     }
@@ -135,12 +125,14 @@ class RagOrchestratorTest {
                 List.of(allowedResult, disallowedResult)));
         stubMatchingChunks(List.of(allowedResult));
         AiRagGenerateResponse generateResponse =
-                new AiRagGenerateResponse("휴가는 연 15일입니다.", List.of(10L, 20L, 99L));
+                new AiRagGenerateResponse(
+                        RagAnswerStatus.ANSWERED,
+                        "휴가는 연 15일입니다.",
+                        List.of(10L, 20L, 99L));
         aiRagClient.registerGenerateResponse(QUESTION, generateResponse);
 
         RagSearchOrchestrationResult searchResult = search(Set.of(1L));
 
-        assertTrue(searchResult.hasSufficientEvidence());
         assertEquals(List.of(allowedResult), searchResult.verifiedSearchResults());
         assertEquals(PROVIDER_NAME, aiRagClient.getLastSearchRequest().providerName());
         assertEquals(MODEL_NAME, aiRagClient.getLastSearchRequest().modelName());
@@ -148,10 +140,73 @@ class RagOrchestratorTest {
         RagGenerationOrchestrationResult generationResult =
                 orchestrator.generate(QUESTION, searchResult);
 
+        assertEquals(RagAnswerStatus.ANSWERED, generationResult.status());
         assertEquals(generateResponse.answer(), generationResult.answer());
         assertEquals(List.of(10L), generationResult.validCitedChunkIds());
         assertEquals(1, aiRagClient.getGenerateCallCount());
         assertEquals(List.of(allowedResult), aiRagClient.getLastGenerateRequest().evidence());
+    }
+
+    @Test
+    void normalizesAiInsufficientEvidenceResponse() {
+        AiRagSearchResultItem result = createSearchResult(1L, 10L, 0.8);
+        aiRagClient.registerSearchResponse(
+                QUESTION, new AiRagSearchResponse(List.of(result)));
+        stubMatchingChunks(List.of(result));
+        aiRagClient.registerGenerateResponse(
+                QUESTION,
+                new AiRagGenerateResponse(
+                        RagAnswerStatus.INSUFFICIENT_EVIDENCE,
+                        "버려야 하는 답변",
+                        List.of(10L)));
+
+        RagGenerationOrchestrationResult generationResult =
+                orchestrator.generate(QUESTION, search(Set.of(1L)));
+
+        assertEquals(RagAnswerStatus.INSUFFICIENT_EVIDENCE, generationResult.status());
+        assertEquals(null, generationResult.answer());
+        assertEquals(List.of(), generationResult.validCitedChunkIds());
+    }
+
+    @Test
+    void downgradesAnsweredResponseWhenNoValidCitationSurvives() {
+        AiRagSearchResultItem result = createSearchResult(1L, 10L, 0.8);
+        aiRagClient.registerSearchResponse(
+                QUESTION, new AiRagSearchResponse(List.of(result)));
+        stubMatchingChunks(List.of(result));
+        aiRagClient.registerGenerateResponse(
+                QUESTION,
+                new AiRagGenerateResponse(
+                        RagAnswerStatus.ANSWERED,
+                        "검증되지 않은 답변",
+                        List.of(999L)));
+
+        RagGenerationOrchestrationResult generationResult =
+                orchestrator.generate(QUESTION, search(Set.of(1L)));
+
+        assertEquals(RagAnswerStatus.INSUFFICIENT_EVIDENCE, generationResult.status());
+        assertEquals(null, generationResult.answer());
+        assertEquals(List.of(), generationResult.validCitedChunkIds());
+    }
+
+    @Test
+    void passesAllFiveVerifiedEvidenceItemsToGeneration() {
+        List<AiRagSearchResultItem> results = List.of(
+                createSearchResult(1L, 10L, 0.65),
+                createSearchResult(1L, 20L, 0.60),
+                createSearchResult(1L, 30L, 0.55),
+                createSearchResult(1L, 40L, 0.50),
+                createSearchResult(1L, 50L, 0.45));
+        aiRagClient.registerSearchResponse(QUESTION, new AiRagSearchResponse(results));
+        stubMatchingChunks(results);
+        aiRagClient.registerGenerateResponse(
+                QUESTION,
+                new AiRagGenerateResponse(
+                        RagAnswerStatus.ANSWERED, "답변", List.of(50L)));
+
+        orchestrator.generate(QUESTION, search(Set.of(1L)));
+
+        assertEquals(results, aiRagClient.getLastGenerateRequest().evidence());
     }
 
     @Test
@@ -170,7 +225,6 @@ class RagOrchestratorTest {
 
         RagSearchOrchestrationResult searchResult = search(Set.of(1L));
 
-        assertFalse(searchResult.hasSufficientEvidence());
         assertTrue(searchResult.verifiedSearchResults().isEmpty());
         assertThrows(
                 IllegalStateException.class,
@@ -216,7 +270,6 @@ class RagOrchestratorTest {
         when(failingClient.generate(any())).thenThrow(originalFailure);
         RagOrchestrator failingOrchestrator = createOrchestrator(failingClient);
         RagSearchOrchestrationResult sufficientResult = new RagSearchOrchestrationResult(
-                true,
                 List.of(createSearchResult(1L, 10L, 0.8)));
 
         ExternalAiCallException exception = assertThrows(
@@ -238,9 +291,7 @@ class RagOrchestratorTest {
         return new RagOrchestrator(
                 client,
                 new SearchResultVerifier(documentChunkRepository),
-                new EvidenceThresholdChecker(),
-                new CitationValidator(),
-                EVIDENCE_THRESHOLD);
+                new CitationValidator());
     }
 
     private AiRagSearchResultItem createSearchResult(

@@ -99,8 +99,9 @@ class PythonAiRagClientTest {
                         """))
                 .andRespond(withSuccess("""
                         {
+                          "status": "ANSWERED",
                           "answer": "예시 답변 텍스트",
-                          "cited_chunk_ids": [5001]
+                          "citations": [5001]
                         }
                         """, MediaType.APPLICATION_JSON));
 
@@ -108,6 +109,8 @@ class PythonAiRagClientTest {
                 "육아휴직 규정을 알려주세요",
                 List.of(new AiRagSearchResultItem(101L, 5001L, "근거", 0.87))));
 
+        assertEquals(com.teamproject.japan_newhire_rag_backend.rag.RagAnswerStatus.ANSWERED,
+                response.status());
         assertEquals("예시 답변 텍스트", response.answer());
         assertEquals(List.of(5001L), response.citedChunkIds());
         server.verify();
