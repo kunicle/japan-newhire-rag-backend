@@ -11,10 +11,33 @@ public record HrOxQuizResponse(
         String quizTitle,
         BigDecimal passingScore,
         Integer maxAttemptCount,
+        boolean required,
         boolean active,
         Long createdBy,
         List<Question> questions
 ) {
+
+    public HrOxQuizResponse(
+            Long quizId,
+            Long courseId,
+            String quizTitle,
+            BigDecimal passingScore,
+            Integer maxAttemptCount,
+            boolean active,
+            Long createdBy,
+            List<Question> questions
+    ) {
+        this(
+                quizId,
+                courseId,
+                quizTitle,
+                passingScore,
+                maxAttemptCount,
+                true,
+                active,
+                createdBy,
+                questions);
+    }
 
     public static HrOxQuizResponse from(
             Quiz quiz,
@@ -26,6 +49,7 @@ public record HrOxQuizResponse(
                 quiz.getQuizTitle(),
                 quiz.getPassingScore(),
                 quiz.getMaxAttemptCount(),
+                quiz.isRequired(),
                 quiz.isActive(),
                 quiz.getCreatedBy(),
                 questions);

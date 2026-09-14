@@ -68,6 +68,7 @@ public class OnboardingAssignmentService {
                 onboardingTaskId,
                 request.employeeIds().size(),
                 normalizedEmployeeIds,
+                true,
                 currentUser.appUserId());
     }
 
@@ -91,6 +92,7 @@ public class OnboardingAssignmentService {
                 onboardingTaskId,
                 request.employeeIds().size(),
                 normalizedEmployeeIds,
+                false,
                 currentUser.appUserId());
     }
 
@@ -136,11 +138,15 @@ public class OnboardingAssignmentService {
             Long onboardingTaskId,
             int requestedCount,
             Set<Long> normalizedEmployeeIds,
+            boolean newHireOnly,
             Long assignedBy
     ) {
         OnboardingTask task = findTask(onboardingTaskId);
         validateActiveTask(task);
-        validateNewHireEmployees(normalizedEmployeeIds);
+
+        if (newHireOnly) {
+            validateNewHireEmployees(normalizedEmployeeIds);
+        }
 
         Set<Long> existingEmployeeIds =
                 assignmentRepository

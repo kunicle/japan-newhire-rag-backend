@@ -27,8 +27,29 @@ public record OxQuizCreateRequest(
         @Min(1)
         Integer maxAttemptCount,
 
+        Boolean required,
+
         @NotEmpty
         @Size(max = 100)
         List<@Valid OxQuizQuestionRequest> questions
 ) {
+    public OxQuizCreateRequest(
+            String quizTitle,
+            BigDecimal passingScore,
+            Integer maxAttemptCount,
+            List<OxQuizQuestionRequest> questions
+    ) {
+        this(
+                quizTitle,
+                passingScore,
+                maxAttemptCount,
+                true,
+                questions);
+    }
+
+    public OxQuizCreateRequest {
+        if (required == null) {
+            required = true;
+        }
+    }
 }

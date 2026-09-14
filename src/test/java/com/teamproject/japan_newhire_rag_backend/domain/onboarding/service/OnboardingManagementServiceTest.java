@@ -74,16 +74,13 @@ class OnboardingManagementServiceTest {
     }
 
     @Test
-    void managerGetsOnlyDirectNewHiresForAssignment() {
+    void managerGetsDirectEmployeesForAssignment() {
         stubCurrentUser(
                 MANAGER_EMPLOYEE_ID,
                 Set.of(RoleType.MANAGER));
         when(organizationQueryService.findManagedEmployeeIds(
                 MANAGER_EMPLOYEE_ID))
-                .thenReturn(List.of(TARGET_EMPLOYEE_ID, 20L));
-        when(organizationQueryService
-                .findValidNewHireEmployeeIds())
-                .thenReturn(List.of(TARGET_EMPLOYEE_ID, 30L));
+                .thenReturn(List.of(TARGET_EMPLOYEE_ID));
         when(organizationQueryService.findEmployeeSummaries(
                 Set.of(TARGET_EMPLOYEE_ID)))
                 .thenReturn(List.of(new EmployeeSummary(

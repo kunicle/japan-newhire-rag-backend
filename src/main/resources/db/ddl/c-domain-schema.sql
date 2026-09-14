@@ -302,6 +302,7 @@ CREATE TABLE IF NOT EXISTS course_assignment (
     quiz_title VARCHAR(200) NOT NULL,
     passing_score DECIMAL(5, 2) NOT NULL,
     max_attempt_count INT NULL,
+    is_required BOOLEAN NOT NULL DEFAULT TRUE,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_by BIGINT NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

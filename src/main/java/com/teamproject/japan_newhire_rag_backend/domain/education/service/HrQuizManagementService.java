@@ -74,6 +74,7 @@ public class HrQuizManagementService {
                         request.quizTitle().trim(),
                         request.passingScore(),
                         request.maxAttemptCount(),
+                        request.required(),
                         currentUser.appUserId()));
 
         List<HrOxQuizResponse.Question> questionResponses =

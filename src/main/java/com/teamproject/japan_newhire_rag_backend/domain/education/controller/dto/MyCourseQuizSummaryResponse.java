@@ -4,12 +4,21 @@ import com.teamproject.japan_newhire_rag_backend.domain.education.entity.Quiz;
 
 public record MyCourseQuizSummaryResponse(
         Long quizId,
-        String quizTitle
+        String quizTitle,
+        boolean required
 ) {
+
+    public MyCourseQuizSummaryResponse(
+            Long quizId,
+            String quizTitle
+    ) {
+        this(quizId, quizTitle, true);
+    }
 
     public static MyCourseQuizSummaryResponse from(Quiz quiz) {
         return new MyCourseQuizSummaryResponse(
                 quiz.getQuizId(),
-                quiz.getQuizTitle());
+                quiz.getQuizTitle(),
+                quiz.isRequired());
     }
 }
