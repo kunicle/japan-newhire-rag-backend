@@ -1,15 +1,11 @@
 package com.teamproject.japan_newhire_rag_backend.rag.config;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
 
-import java.util.Map;
-
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-import org.springframework.core.env.MapPropertySource;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClient;
 
@@ -26,7 +22,7 @@ import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagOrchestrat
 class RagAiConfigurationTest {
 
     @Test
-    void createsRagBeanGraphWithConfiguredEvidenceThreshold() {
+    void createsRagBeanGraphWithoutEvidenceThresholdDependency() {
         DocumentSearchScopeService documentSearchScopeService =
                 new DocumentSearchScopeService(null, null);
         EmbeddingModelSelectionService embeddingModelSelectionService =
@@ -34,10 +30,6 @@ class RagAiConfigurationTest {
 
         try (AnnotationConfigApplicationContext context =
                 new AnnotationConfigApplicationContext()) {
-            context.getEnvironment().getPropertySources().addFirst(
-                    new MapPropertySource(
-                            "rag-test-properties",
-                            Map.of("rag.evidence-threshold", 0.7)));
             context.registerBean(RestClient.Builder.class, () -> RestClient.builder());
             context.registerBean(
                     DocumentChunkRepository.class,
@@ -61,9 +53,6 @@ class RagAiConfigurationTest {
             assertSame(
                     aiRagClient,
                     ReflectionTestUtils.getField(ragOrchestrator, "aiRagClient"));
-            assertEquals(
-                    0.7,
-                    ReflectionTestUtils.getField(ragOrchestrator, "evidenceThreshold"));
             assertSame(
                     documentSearchScopeService,
                     ReflectionTestUtils.getField(ragQueryService, "documentSearchScopeService"));

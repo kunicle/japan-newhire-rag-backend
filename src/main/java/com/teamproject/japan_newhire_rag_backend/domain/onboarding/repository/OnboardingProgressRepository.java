@@ -23,6 +23,14 @@ public interface OnboardingProgressRepository
             findByOnboardingAssignment_EmployeeIdOrderByOnboardingAssignment_DueDateAsc(
                     Long employeeId);
 
+        @EntityGraph(attributePaths = {
+                "onboardingAssignment",
+                "onboardingAssignment.onboardingTask"
+        })
+        List<OnboardingProgress>
+                findByOnboardingAssignment_EmployeeIdAndOnboardingAssignment_OnboardingTask_ActiveTrueOrderByOnboardingAssignment_DueDateAsc(
+                        Long employeeId);
+
     @EntityGraph(attributePaths = {
             "onboardingAssignment",
             "onboardingAssignment.onboardingTask"

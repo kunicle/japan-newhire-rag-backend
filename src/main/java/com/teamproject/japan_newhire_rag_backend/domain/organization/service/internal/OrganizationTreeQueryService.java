@@ -1,9 +1,5 @@
 package com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal;
 
-import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus;
-import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationStatus;
-import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationType;
-import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.ManagerRelationRepository;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -21,9 +17,13 @@ import com.teamproject.japan_newhire_rag_backend.domain.organization.controller.
 import com.teamproject.japan_newhire_rag_backend.domain.organization.controller.dto.OrganizationResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.Department;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.Employee;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationStatus;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationType;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.error.OrganizationErrorCode;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.DepartmentRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.EmployeeRepository;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.ManagerRelationRepository;
 
 @Service
 @Transactional(readOnly = true)
@@ -104,14 +104,19 @@ public class OrganizationTreeQueryService {
             if (parent == null) {
                 continue;
             }
+
             Long parentId = parent.getDepartmentId();
             if (!departmentsById.containsKey(parentId)) {
                 throw dataConflict();
             }
+
             childrenByParentId.computeIfAbsent(parentId, ignored -> new ArrayList<>())
                     .add(department);
         }
-        childrenByParentId.values().forEach(children -> children.sort(DEPARTMENT_ORDER));
+
+        childrenByParentId.values()
+                .forEach(children -> children.sort(DEPARTMENT_ORDER));
+
         return childrenByParentId;
     }
 
@@ -119,27 +124,43 @@ public class OrganizationTreeQueryService {
             Map<Long, Department> departmentsById
     ) {
         Map<Long, Long> managers = new HashMap<>();
+
         managerRelationRepository.findByRelationTypeAndRelationStatusAndEndedAtIsNull(
                 RelationType.DIRECT,
                 RelationStatus.ACTIVE)
-                .stream().filter(relation -> relation.getEmployee().getDeletedAt() == null
+                .stream()
+                .filter(relation -> relation.getEmployee().getDeletedAt() == null
                         && relation.getManagerEmployee().getDeletedAt() == null)
                 .forEach(relation -> {
-                    if (managers.put(relation.getEmployee().getEmployeeId(),
-                            relation.getManagerEmployee().getEmployeeId()) != null) throw dataConflict();
+                    if (managers.put(
+                            relation.getEmployee().getEmployeeId(),
+                            relation.getManagerEmployee().getEmployeeId()) != null) {
+                        throw dataConflict();
+                    }
                 });
-        Map<Long, List<OrganizationEmployeeResponse>> employeesByDepartmentId = new HashMap<>();
-        employeeRepository.findByDeletedAtIsNullAndDepartment_DeletedAtIsNull().stream()
+
+        Map<Long, List<OrganizationEmployeeResponse>> employeesByDepartmentId =
+                new HashMap<>();
+
+        employeeRepository.findByDeletedAtIsNullAndDepartment_DeletedAtIsNull()
+                .stream()
                 .filter(employee -> employee.getDeletedAt() == null)
                 .filter(employee -> employee.getEmploymentStatus() == EmploymentStatus.EMPLOYED
                         || employee.getEmploymentStatus() == EmploymentStatus.LEAVE)
                 .filter(employee -> departmentsById.containsKey(
                         employee.getDepartment().getDepartmentId()))
-                .map(employee -> toEmployeeResponse(employee, managers.get(employee.getEmployeeId())))
+                .map(employee -> toEmployeeResponse(
+                        employee,
+                        managers.get(employee.getEmployeeId())))
                 .forEach(employee -> employeesByDepartmentId
-                        .computeIfAbsent(employee.departmentId(), ignored -> new ArrayList<>())
+                        .computeIfAbsent(
+                                employee.departmentId(),
+                                ignored -> new ArrayList<>())
                         .add(employee));
-        employeesByDepartmentId.values().forEach(employees -> employees.sort(EMPLOYEE_ORDER));
+
+        employeesByDepartmentId.values()
+                .forEach(employees -> employees.sort(EMPLOYEE_ORDER));
+
         return employeesByDepartmentId;
     }
 
@@ -150,6 +171,7 @@ public class OrganizationTreeQueryService {
             Set<Long> path
     ) {
         Long departmentId = department.getDepartmentId();
+
         if (!path.add(departmentId)) {
             throw dataConflict();
         }
@@ -158,11 +180,16 @@ public class OrganizationTreeQueryService {
                 .getOrDefault(departmentId, List.of())
                 .stream()
                 .map(child -> buildDepartment(
-                        child, childrenByParentId, employeesByDepartmentId, path))
+                        child,
+                        childrenByParentId,
+                        employeesByDepartmentId,
+                        path))
                 .toList();
+
         path.remove(departmentId);
 
         Department parent = department.getParentDepartment();
+
         return new OrganizationDepartmentResponse(
                 departmentId,
                 department.getDepartmentCode(),
@@ -173,7 +200,10 @@ public class OrganizationTreeQueryService {
                 children);
     }
 
-    private OrganizationEmployeeResponse toEmployeeResponse(Employee employee, Long managerEmployeeId) {
+    private OrganizationEmployeeResponse toEmployeeResponse(
+            Employee employee,
+            Long managerEmployeeId
+    ) {
         return new OrganizationEmployeeResponse(
                 employee.getEmployeeId(),
                 employee.getEmployeeNumber(),
@@ -183,6 +213,7 @@ public class OrganizationTreeQueryService {
                 employee.getJobGrade().getGradeName(),
                 employee.getJobGrade().getGradeLevel(),
                 employee.getHireDate(),
+                employee.getEmployeeType().name(),
                 employee.getDepartment().getDepartmentName(),
                 managerEmployeeId,
                 employee.getEmploymentStatus());
@@ -195,6 +226,7 @@ public class OrganizationTreeQueryService {
     }
 
     private BusinessException dataConflict() {
-        return new BusinessException(OrganizationErrorCode.ORGANIZATION_DATA_CONFLICT);
+        return new BusinessException(
+                OrganizationErrorCode.ORGANIZATION_DATA_CONFLICT);
     }
 }

@@ -16,6 +16,7 @@ import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProv
 import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.RoleType;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingAssignmentCreateRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingAssignmentCreateResponse;
+import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingAssignmentResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.entity.OnboardingAssignment;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.entity.OnboardingProgress;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.entity.OnboardingTask;
@@ -91,6 +92,27 @@ public class OnboardingAssignmentService {
                 request.employeeIds().size(),
                 normalizedEmployeeIds,
                 currentUser.appUserId());
+    }
+
+    @Transactional(readOnly = true)
+    public List<OnboardingAssignmentResponse> getAssignments(
+        Long onboardingTaskId
+    ) {
+        validateCurrentHrManager();
+        validateTaskId(onboardingTaskId);
+        findTask(onboardingTaskId);
+
+        return assignmentRepository
+                .findByOnboardingTask_OnboardingTaskId(onboardingTaskId)
+                .stream()
+                .map(assignment ->
+                        new OnboardingAssignmentResponse(
+                                assignment.getOnboardingAssignmentId(),
+                                assignment.getEmployeeId(),
+                                assignment.getAssignedDate(),
+                                assignment.getDueDate(),
+                                assignment.getAssignmentStatus().name()))
+                .toList();
     }
 
     @Transactional
