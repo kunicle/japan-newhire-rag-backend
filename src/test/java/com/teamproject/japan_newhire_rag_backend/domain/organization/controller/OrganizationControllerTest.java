@@ -40,6 +40,7 @@ import com.teamproject.japan_newhire_rag_backend.domain.organization.controller.
 import com.teamproject.japan_newhire_rag_backend.domain.organization.controller.dto.OrganizationEmployeeResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.controller.dto.OrganizationResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.JobGrade;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal.JobGradeQueryService;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal.OrganizationTreeQueryService;
 
@@ -60,11 +61,20 @@ class OrganizationControllerTest {
 
     private static final String ACCESS_TOKEN = "access-token";
 
-    @Autowired WebApplicationContext applicationContext;
-    @Autowired OrganizationTreeQueryService organizationTreeQueryService;
-    @Autowired JobGradeQueryService jobGradeQueryService;
-    @Autowired AccessTokenService accessTokenService;
-    @Autowired InternalJwtAuthenticationQueryService authenticationQueryService;
+    @Autowired
+    WebApplicationContext applicationContext;
+
+    @Autowired
+    OrganizationTreeQueryService organizationTreeQueryService;
+
+    @Autowired
+    JobGradeQueryService jobGradeQueryService;
+
+    @Autowired
+    AccessTokenService accessTokenService;
+
+    @Autowired
+    InternalJwtAuthenticationQueryService authenticationQueryService;
 
     private MockMvc mockMvc;
 
@@ -74,8 +84,11 @@ class OrganizationControllerTest {
                 organizationTreeQueryService,
                 jobGradeQueryService,
                 accessTokenService,
-                authenticationQueryService);
+                authenticationQueryService
+        );
+
         SecurityContextHolder.clearContext();
+
         mockMvc = MockMvcBuilders.webAppContextSetup(applicationContext)
                 .apply(springSecurity())
                 .build();
@@ -83,18 +96,31 @@ class OrganizationControllerTest {
 
     @Test
     void authenticatedEmployeeCanReadOrganizationWithoutSensitiveFields() throws Exception {
-        when(accessTokenService.validateAndExtractAppUserId(ACCESS_TOKEN)).thenReturn(1L);
-        when(authenticationQueryService.load(1L))
-                .thenReturn(new JwtAuthenticationUser(1L, Set.of(RoleType.EMPLOYEE)));
-        when(organizationTreeQueryService.getOrganizationTree()).thenReturn(response());
+        when(accessTokenService.validateAndExtractAppUserId(ACCESS_TOKEN))
+                .thenReturn(1L);
 
-        mockMvc.perform(get("/api/organization")
-                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+        when(authenticationQueryService.load(1L))
+                .thenReturn(new JwtAuthenticationUser(
+                        1L,
+                        Set.of(RoleType.EMPLOYEE)
+                ));
+
+        when(organizationTreeQueryService.getOrganizationTree())
+                .thenReturn(response());
+
+        mockMvc.perform(
+                        get("/api/organization")
+                                .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                )
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.departments[0].departmentCode").value("DEV"))
-                .andExpect(jsonPath("$.departments[0].employees[0].employeeNumber").value("E-001"))
-                .andExpect(jsonPath("$.departments[0].employees[0].jobGradeName").value("Junior"))
-                .andExpect(jsonPath("$.departments[0].employees[0].employmentStatus").value("LEAVE"))
+                .andExpect(jsonPath("$.departments[0].departmentCode")
+                        .value("DEV"))
+                .andExpect(jsonPath("$.departments[0].employees[0].employeeNumber")
+                        .value("E-001"))
+                .andExpect(jsonPath("$.departments[0].employees[0].jobGradeName")
+                        .value("Junior"))
+                .andExpect(jsonPath("$.departments[0].employees[0].employmentStatus")
+                        .value("LEAVE"))
                 .andExpect(jsonPath("$..passwordHash").doesNotExist())
                 .andExpect(jsonPath("$..failedLoginCount").doesNotExist())
                 .andExpect(jsonPath("$..lockedUntil").doesNotExist())
@@ -112,17 +138,28 @@ class OrganizationControllerTest {
     @Test
     void authenticatedEmployeeCanReadActiveJobGrades() throws Exception {
         JobGrade jobGrade = mock(JobGrade.class);
+
         when(jobGrade.getJobGradeId()).thenReturn(101L);
         when(jobGrade.getGradeCode()).thenReturn("DEV-G1");
         when(jobGrade.getGradeName()).thenReturn("Junior");
         when(jobGrade.getGradeLevel()).thenReturn(1);
-        when(accessTokenService.validateAndExtractAppUserId(ACCESS_TOKEN)).thenReturn(1L);
-        when(authenticationQueryService.load(1L))
-                .thenReturn(new JwtAuthenticationUser(1L, Set.of(RoleType.EMPLOYEE)));
-        when(jobGradeQueryService.getActiveJobGrades()).thenReturn(List.of(jobGrade));
 
-        mockMvc.perform(get("/api/organization/job-grades")
-                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+        when(accessTokenService.validateAndExtractAppUserId(ACCESS_TOKEN))
+                .thenReturn(1L);
+
+        when(authenticationQueryService.load(1L))
+                .thenReturn(new JwtAuthenticationUser(
+                        1L,
+                        Set.of(RoleType.EMPLOYEE)
+                ));
+
+        when(jobGradeQueryService.getActiveJobGrades())
+                .thenReturn(List.of(jobGrade));
+
+        mockMvc.perform(
+                        get("/api/organization/job-grades")
+                                .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].jobGradeId").value(101))
                 .andExpect(jsonPath("$[0].jobGradeCode").value("DEV-G1"))
@@ -139,12 +176,33 @@ class OrganizationControllerTest {
     }
 
     private OrganizationResponse response() {
-        OrganizationEmployeeResponse employee = new OrganizationEmployeeResponse(
-                10L, "E-001", "Kim", 100L, 200L, "Junior", 1,
-                LocalDate.of(2026, 1, 2), "Development", null, com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus.LEAVE);
-        OrganizationDepartmentResponse department = new OrganizationDepartmentResponse(
-                100L, "DEV", "Development", null, 1,
-                List.of(employee), List.of());
+        OrganizationEmployeeResponse employee =
+                new OrganizationEmployeeResponse(
+                        10L,
+                        "E-001",
+                        "Kim",
+                        100L,
+                        200L,
+                        "Junior",
+                        1,
+                        LocalDate.of(2026, 1, 2),
+                        "GENERAL",
+                        "Development",
+                        null,
+                        EmploymentStatus.LEAVE
+                );
+
+        OrganizationDepartmentResponse department =
+                new OrganizationDepartmentResponse(
+                        100L,
+                        "DEV",
+                        "Development",
+                        null,
+                        1,
+                        List.of(employee),
+                        List.of()
+                );
+
         return new OrganizationResponse(List.of(department));
     }
 
@@ -159,22 +217,40 @@ class OrganizationControllerTest {
     })
     static class TestConfiguration {
 
-        @Bean ObjectMapper objectMapper() { return JsonMapper.builder().build(); }
-        @Bean OrganizationTreeQueryService organizationTreeQueryService() {
+        @Bean
+        ObjectMapper objectMapper() {
+            return JsonMapper.builder().build();
+        }
+
+        @Bean
+        OrganizationTreeQueryService organizationTreeQueryService() {
             return mock(OrganizationTreeQueryService.class);
         }
-        @Bean JobGradeQueryService jobGradeQueryService() {
+
+        @Bean
+        JobGradeQueryService jobGradeQueryService() {
             return mock(JobGradeQueryService.class);
         }
-        @Bean AccessTokenService accessTokenService() { return mock(AccessTokenService.class); }
-        @Bean InternalJwtAuthenticationQueryService authenticationQueryService() {
+
+        @Bean
+        AccessTokenService accessTokenService() {
+            return mock(AccessTokenService.class);
+        }
+
+        @Bean
+        InternalJwtAuthenticationQueryService authenticationQueryService() {
             return mock(InternalJwtAuthenticationQueryService.class);
         }
-        @Bean JwtAuthenticationFilter jwtAuthenticationFilter(
+
+        @Bean
+        JwtAuthenticationFilter jwtAuthenticationFilter(
                 AccessTokenService accessTokenService,
                 InternalJwtAuthenticationQueryService authenticationQueryService
         ) {
-            return new JwtAuthenticationFilter(accessTokenService, authenticationQueryService);
+            return new JwtAuthenticationFilter(
+                    accessTokenService,
+                    authenticationQueryService
+            );
         }
     }
 }

@@ -329,7 +329,8 @@ class UserAdministrationServiceTest {
         verify(userRoleRepository).saveAndFlush(any(UserRole.class));
         ArgumentCaptor<AuditLogRecordCommand> auditCaptor =
                 ArgumentCaptor.forClass(AuditLogRecordCommand.class);
-        verify(auditLogRecordService, org.mockito.Mockito.times(managerId == null ? 2 : 3)).record(auditCaptor.capture());
+        verify(auditLogRecordService, org.mockito.Mockito.times(2))
+        .record(auditCaptor.capture());
         assertEquals(Set.of(AuditActionType.ROLE_GRANTED, AuditActionType.ROLE_REVOKED),
                 auditCaptor.getAllValues().stream()
                         .map(AuditLogRecordCommand::actionType).collect(java.util.stream.Collectors.toSet()));
