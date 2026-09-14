@@ -102,7 +102,7 @@ class CoreRagPersistenceSchemaConsistencyTest {
 
     @Test
     void repositoriesDeclareExpectedMethods() {
-        assertEquals(2, com.teamproject.japan_newhire_rag_backend.rag.persistence.repository
+        assertEquals(3, com.teamproject.japan_newhire_rag_backend.rag.persistence.repository
                 .RagQuestionRepository.class.getDeclaredMethods().length);
         assertEquals(1, com.teamproject.japan_newhire_rag_backend.rag.persistence.repository
                 .RagSearchRepository.class.getDeclaredMethods().length);
