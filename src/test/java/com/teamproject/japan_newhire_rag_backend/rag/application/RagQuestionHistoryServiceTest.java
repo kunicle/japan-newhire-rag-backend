@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -21,6 +24,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCode;
 import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessException;
@@ -66,27 +73,81 @@ class RagQuestionHistoryServiceTest {
         LocalDateTime olderAt = LocalDateTime.of(2026, 8, 18, 10, 0);
         RagQuestion newer = question(20L, "최근 질문", "ANSWERED", newerAt);
         RagQuestion older = question(10L, "이전 질문", "FAILED", olderAt);
-        when(ragQuestionRepository.findByCreatedByOrderByCreatedAtDesc(APP_USER_ID))
-                .thenReturn(List.of(newer, older));
+        when(ragQuestionRepository.findAllByCreatedByAndKeyword(eq(APP_USER_ID), isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(newer, older)));
 
-        List<RagQuestionHistoryItem> result = service.getQuestionHistory(CURRENT_USER);
+        Page<RagQuestionHistoryItem> result = service.getQuestionHistory(CURRENT_USER, null, 0, 10);
 
         assertEquals(List.of(
                 new RagQuestionHistoryItem(20L, "최근 질문", "ANSWERED", newerAt),
-                new RagQuestionHistoryItem(10L, "이전 질문", "FAILED", olderAt)), result);
-        verify(ragQuestionRepository).findByCreatedByOrderByCreatedAtDesc(APP_USER_ID);
+                new RagQuestionHistoryItem(10L, "이전 질문", "FAILED", olderAt)), result.getContent());
+        verify(ragQuestionRepository).findAllByCreatedByAndKeyword(eq(APP_USER_ID), isNull(), any(Pageable.class));
         verifyNoInteractions(ragSearchRepository, ragAnswerRepository, ragCitationRepository);
     }
 
     @Test
     void returnsEmptyHistoryWithoutLookingUpDetails() {
-        when(ragQuestionRepository.findByCreatedByOrderByCreatedAtDesc(APP_USER_ID))
-                .thenReturn(List.of());
+        when(ragQuestionRepository.findAllByCreatedByAndKeyword(eq(APP_USER_ID), isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
 
-        List<RagQuestionHistoryItem> result = service.getQuestionHistory(CURRENT_USER);
+        Page<RagQuestionHistoryItem> result = service.getQuestionHistory(CURRENT_USER, null, 0, 10);
 
-        assertEquals(List.of(), result);
+        assertEquals(List.of(), result.getContent());
         verifyNoInteractions(ragSearchRepository, ragAnswerRepository, ragCitationRepository);
+    }
+
+    @Test
+    void passesTrimmedKeywordToRepositoryWhenBlankTrimmingLeavesContent() {
+        when(ragQuestionRepository.findAllByCreatedByAndKeyword(eq(APP_USER_ID), eq("연차"), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        service.getQuestionHistory(CURRENT_USER, "  연차  ", 0, 10);
+
+        verify(ragQuestionRepository)
+                .findAllByCreatedByAndKeyword(eq(APP_USER_ID), eq("연차"), any(Pageable.class));
+    }
+
+    @Test
+    void normalizesBlankOrNullKeywordToNullForFullResults() {
+        when(ragQuestionRepository.findAllByCreatedByAndKeyword(eq(APP_USER_ID), isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        service.getQuestionHistory(CURRENT_USER, "   ", 0, 10);
+
+        verify(ragQuestionRepository)
+                .findAllByCreatedByAndKeyword(eq(APP_USER_ID), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    void sortsByCreatedAtDescendingAndAppliesRequestedPageAndSize() {
+        when(ragQuestionRepository.findAllByCreatedByAndKeyword(eq(APP_USER_ID), isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        service.getQuestionHistory(CURRENT_USER, null, 2, 5);
+
+        org.mockito.ArgumentCaptor<Pageable> captor = org.mockito.ArgumentCaptor.forClass(Pageable.class);
+        verify(ragQuestionRepository)
+                .findAllByCreatedByAndKeyword(eq(APP_USER_ID), isNull(), captor.capture());
+        Pageable used = captor.getValue();
+        assertEquals(2, used.getPageNumber());
+        assertEquals(5, used.getPageSize());
+        assertEquals(Sort.by(Sort.Direction.DESC, "createdAt"), used.getSort());
+    }
+
+    @Test
+    void rejectsNegativePage() {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.getQuestionHistory(CURRENT_USER, null, -1, 10));
+        verifyNoInteractions(ragQuestionRepository);
+    }
+
+    @Test
+    void rejectsSizeOutOfRange() {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.getQuestionHistory(CURRENT_USER, null, 0, 0));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.getQuestionHistory(CURRENT_USER, null, 0, 101));
+        verifyNoInteractions(ragQuestionRepository);
     }
 
     @Test
@@ -155,6 +216,8 @@ class RagQuestionHistoryServiceTest {
     void returnsNonAnsweredDetailWithoutCitationLookupWhenAnswerIsMissing() {
         RagQuestion question = question(
                 12L, "실패 질문", "FAILED", LocalDateTime.of(2026, 8, 19, 13, 0));
+        when(question.getFailureType()).thenReturn("API_ERROR");
+        when(question.getFailureReason()).thenReturn("외부 AI 서비스 호출에 실패했습니다.");
         RagSearch search = mock(RagSearch.class);
         when(search.getRagSearchId()).thenReturn(31L);
         when(ragQuestionRepository.findByRagQuestionIdAndCreatedBy(12L, APP_USER_ID))
@@ -169,6 +232,8 @@ class RagQuestionHistoryServiceTest {
         assertEquals("FAILED", result.status());
         assertNull(result.answer());
         assertTrue(result.citations().isEmpty());
+        assertEquals("API_ERROR", result.failureType());
+        assertEquals("외부 AI 서비스 호출에 실패했습니다.", result.failureReason());
         verifyNoInteractions(ragCitationRepository);
     }
 

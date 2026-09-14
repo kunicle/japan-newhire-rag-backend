@@ -11,5 +11,7 @@ public record RagQuestionHistoryDetail(
         String status,
         LocalDateTime askedAt,
         String answer,
-        List<RagCitationSnapshot> citations) {
+        List<RagCitationSnapshot> citations,
+        String failureType,
+        String failureReason) {
 }

@@ -11,7 +11,9 @@ public record RagQuestionHistoryDetailResponse(
         String status,
         LocalDateTime askedAt,
         String answer,
-        List<RagCitationResponse> citations) {
+        List<RagCitationResponse> citations,
+        String failureType,
+        String failureReason) {
 
     public static RagQuestionHistoryDetailResponse from(RagQuestionHistoryDetail detail) {
         return new RagQuestionHistoryDetailResponse(
@@ -22,6 +24,8 @@ public record RagQuestionHistoryDetailResponse(
                 detail.answer(),
                 detail.citations().stream()
                         .map(RagCitationResponse::from)
-                        .toList());
+                        .toList(),
+                detail.failureType(),
+                detail.failureReason());
     }
 }
