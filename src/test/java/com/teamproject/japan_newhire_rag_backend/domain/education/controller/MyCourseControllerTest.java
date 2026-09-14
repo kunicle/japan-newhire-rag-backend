@@ -5,14 +5,18 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,9 +24,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
@@ -33,6 +34,7 @@ import com.teamproject.japan_newhire_rag_backend.common.exception.GlobalExceptio
 import com.teamproject.japan_newhire_rag_backend.domain.education.controller.dto.MyCourseDetailResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.education.controller.dto.MyCourseModuleResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.education.controller.dto.MyCoursePageResponse;
+import com.teamproject.japan_newhire_rag_backend.domain.education.controller.dto.MyCourseQuizSummaryResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.education.controller.dto.MyCourseSummaryResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.education.enums.EnrollmentStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.education.enums.LearningCompletionStatus;
@@ -130,7 +132,7 @@ class MyCourseControllerTest {
     }
 
     @Test
-    void getsMyCourseDetail() throws Exception {
+    void getsMyCourseDetailWithActiveQuizzes() throws Exception {
         LocalDateTime startedAt =
                 LocalDateTime.of(2026, 9, 2, 10, 0);
 
@@ -162,7 +164,14 @@ class MyCourseControllerTest {
                         new BigDecimal("25.00"),
                         EnrollmentStatus.IN_PROGRESS,
                         null,
-                        List.of(module));
+                        List.of(module),
+                        List.of(
+                                new MyCourseQuizSummaryResponse(
+                                        300L,
+                                        "Company basics quiz"),
+                                new MyCourseQuizSummaryResponse(
+                                        301L,
+                                        "Security basics quiz")));
 
         when(myCourseQueryService.getMyCourse(100L))
                 .thenReturn(response);
@@ -191,7 +200,15 @@ class MyCourseControllerTest {
                         "$.modules[0].completionStatus")
                         .value("IN_PROGRESS"))
                 .andExpect(jsonPath("$.modules[0].startedAt")
-                        .value("2026-09-02T10:00:00"));
+                        .value("2026-09-02T10:00:00"))
+                .andExpect(jsonPath("$.quizzes[0].quizId")
+                        .value(300))
+                .andExpect(jsonPath("$.quizzes[0].quizTitle")
+                        .value("Company basics quiz"))
+                .andExpect(jsonPath("$.quizzes[1].quizId")
+                        .value(301))
+                .andExpect(jsonPath("$.quizzes[1].quizTitle")
+                        .value("Security basics quiz"));
 
         verify(myCourseQueryService).getMyCourse(100L);
     }
