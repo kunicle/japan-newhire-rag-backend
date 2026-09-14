@@ -12,9 +12,32 @@ public record QuizDetailResponse(
         String quizTitle,
         BigDecimal passingScore,
         Integer maxAttemptCount,
+        boolean required,
         int attemptsUsed,
         List<QuizQuestionResponse> questions
 ) {
+    public QuizDetailResponse(
+            Long quizId,
+            Long courseId,
+            Long courseModuleId,
+            String quizTitle,
+            BigDecimal passingScore,
+            Integer maxAttemptCount,
+            int attemptsUsed,
+            List<QuizQuestionResponse> questions
+    ) {
+        this(
+                quizId,
+                courseId,
+                courseModuleId,
+                quizTitle,
+                passingScore,
+                maxAttemptCount,
+                true,
+                attemptsUsed,
+                questions);
+    }
+
     public static QuizDetailResponse from(
             Quiz quiz,
             int attemptsUsed,
@@ -31,6 +54,7 @@ public record QuizDetailResponse(
                 quiz.getQuizTitle(),
                 quiz.getPassingScore(),
                 quiz.getMaxAttemptCount(),
+                quiz.isRequired(),
                 attemptsUsed,
                 questions);
     }
