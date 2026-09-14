@@ -27,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserContext;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProvider;
+import com.teamproject.japan_newhire_rag_backend.rag.RagAnswerStatus;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.AiRagSearchResultItem;
 import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagGenerationOrchestrationResult;
 import com.teamproject.japan_newhire_rag_backend.rag.orchestration.ExternalAiCallException;
@@ -99,7 +100,7 @@ class RagQueryExecutionServiceTest {
 
         RagQueryResult result = service.execute(QUESTION);
 
-        assertEquals(new RagQueryResult(false, null, List.of(), List.of()), result);
+        assertEquals(insufficientResult(), result);
         InOrder order = inOrder(ragPersistenceService);
         order.verify(ragPersistenceService).persistQuestion(QUESTION, 1001L);
         order.verify(ragPersistenceService).markQuestionRejected(
@@ -220,7 +221,7 @@ class RagQueryExecutionServiceTest {
         RagQuestion ragQuestion = org.mockito.Mockito.mock(RagQuestion.class);
         RagSearch ragSearch = org.mockito.Mockito.mock(RagSearch.class);
         RagSearchOrchestrationResult searchResult =
-                new RagSearchOrchestrationResult(false, List.of());
+                new RagSearchOrchestrationResult(List.of());
         stubQuestionPersistence(ragQuestion);
         when(ragOrchestrator.search(QUESTION, Set.of(1L, 2L), "provider", "model"))
                 .thenReturn(searchResult);
@@ -232,7 +233,7 @@ class RagQueryExecutionServiceTest {
         ArgumentCaptor<List<RagSearchPersistenceItem>> captor = persistenceItemsCaptor();
         verify(ragPersistenceService).persistSearch(same(ragQuestion), eq(10L), captor.capture());
         assertEquals(List.of(), captor.getValue());
-        assertEquals(new RagQueryResult(false, null, List.of(), List.of()), result);
+        assertEquals(insufficientResult(), result);
         InOrder order = inOrder(ragPersistenceService, ragOrchestrator);
         order.verify(ragPersistenceService).markQuestionProcessing(ragQuestion);
         order.verify(ragOrchestrator).search(
@@ -240,7 +241,7 @@ class RagQueryExecutionServiceTest {
         order.verify(ragPersistenceService).persistSearch(same(ragQuestion), eq(10L), anyList());
         order.verify(ragPersistenceService).markQuestionRejected(
                 ragQuestion,
-                "LOW_SIMILARITY",
+                "INSUFFICIENT_EVIDENCE",
                 "답변을 생성할 충분한 근거를 찾지 못했습니다.");
         verify(ragOrchestrator, never()).generate(any(), any());
         verify(ragPersistenceService, never()).persistAnswer(
@@ -250,19 +251,24 @@ class RagQueryExecutionServiceTest {
     }
 
     @Test
-    void mapsAndPersistsNonemptyResultsBeforeReturningInsufficient() {
+    void generatesForLowScoreResultsAndReturnsAiInsufficientOutcome() {
         RagQuestion ragQuestion = org.mockito.Mockito.mock(RagQuestion.class);
         RagSearch ragSearch = org.mockito.Mockito.mock(RagSearch.class);
         List<AiRagSearchResultItem> verifiedResults = List.of(
                 searchItem(101L, 201L, "first", 0.61),
                 searchItem(102L, 202L, "second", 0.52));
         RagSearchOrchestrationResult searchResult =
-                new RagSearchOrchestrationResult(false, verifiedResults);
+                new RagSearchOrchestrationResult(verifiedResults);
         stubQuestionPersistence(ragQuestion);
         when(ragOrchestrator.search(QUESTION, Set.of(1L, 2L), "provider", "model"))
                 .thenReturn(searchResult);
         when(ragPersistenceService.persistSearch(same(ragQuestion), eq(10L), anyList()))
                 .thenReturn(ragSearch);
+        when(ragOrchestrator.generate(QUESTION, searchResult)).thenReturn(
+                new RagGenerationOrchestrationResult(
+                        RagAnswerStatus.INSUFFICIENT_EVIDENCE,
+                        null,
+                        List.of()));
 
         RagQueryResult result = service.execute(QUESTION);
 
@@ -271,17 +277,17 @@ class RagQueryExecutionServiceTest {
         assertEquals(List.of(
                 new RagSearchPersistenceItem(201L, 101L, 0.61),
                 new RagSearchPersistenceItem(202L, 102L, 0.52)), captor.getValue());
-        assertEquals(new RagQueryResult(false, null, List.of(), List.of()), result);
+        assertEquals(insufficientResult(), result);
         InOrder order = inOrder(ragPersistenceService, ragOrchestrator);
         order.verify(ragPersistenceService).markQuestionProcessing(ragQuestion);
         order.verify(ragOrchestrator).search(
                 QUESTION, Set.of(1L, 2L), "provider", "model");
         order.verify(ragPersistenceService).persistSearch(same(ragQuestion), eq(10L), anyList());
+        order.verify(ragOrchestrator).generate(QUESTION, searchResult);
         order.verify(ragPersistenceService).markQuestionRejected(
                 ragQuestion,
-                "LOW_SIMILARITY",
+                "INSUFFICIENT_EVIDENCE",
                 "답변을 생성할 충분한 근거를 찾지 못했습니다.");
-        verify(ragOrchestrator, never()).generate(any(), any());
         verify(ragPersistenceService, never()).persistAnswer(
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
@@ -400,7 +406,8 @@ class RagQueryExecutionServiceTest {
                 same(ragSearch), eq("답변"), eq(List.of(201L)));
         order.verify(ragPersistenceService).markQuestionAnswered(ragQuestion);
         assertEquals(List.of(new RagSearchPersistenceItem(201L, 101L, 0.81)), captor.getValue());
-        assertEquals(new RagQueryResult(true, "답변", List.of(201L), citations), result);
+        assertEquals(new RagQueryResult(
+                RagAnswerStatus.ANSWERED, "답변", List.of(201L), citations), result);
         assertEquals(
                 result.validCitedChunkIds(),
                 result.citations().stream()
@@ -435,12 +442,20 @@ class RagQueryExecutionServiceTest {
 
     private RagSearchOrchestrationResult sufficientSearchResult() {
         return new RagSearchOrchestrationResult(
-                true,
                 List.of(searchItem(101L, 201L, "evidence", 0.81)));
     }
 
     private RagGenerationOrchestrationResult generationResult() {
-        return new RagGenerationOrchestrationResult("답변", List.of(201L));
+        return new RagGenerationOrchestrationResult(
+                RagAnswerStatus.ANSWERED, "답변", List.of(201L));
+    }
+
+    private RagQueryResult insufficientResult() {
+        return new RagQueryResult(
+                RagAnswerStatus.INSUFFICIENT_EVIDENCE,
+                null,
+                List.of(),
+                List.of());
     }
 
     private AiRagSearchResultItem searchItem(

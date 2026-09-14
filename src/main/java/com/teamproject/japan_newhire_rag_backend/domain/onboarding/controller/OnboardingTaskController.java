@@ -1,5 +1,7 @@
 package com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +18,7 @@ import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCode;
 import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessException;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingAssignmentCreateRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingAssignmentCreateResponse;
+import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingAssignmentResponse;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingTaskActivationRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingTaskCreateRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingTaskPageResponse;
@@ -86,6 +89,14 @@ public class OnboardingTaskController {
         return taskService.changeActivation(
                 parseTaskId(taskId),
                 request);
+    }
+
+    @GetMapping("/{taskId}/assignments")
+    public List<OnboardingAssignmentResponse> getAssignments(
+        @PathVariable String taskId
+    ) {
+        return assignmentService.getAssignments(
+                parseTaskId(taskId));
     }
 
     @PostMapping("/{taskId}/assignments")

@@ -13,7 +13,6 @@ import com.teamproject.japan_newhire_rag_backend.rag.ai.PythonAiEmbeddingClient;
 import com.teamproject.japan_newhire_rag_backend.rag.ai.PythonAiRagClient;
 import com.teamproject.japan_newhire_rag_backend.rag.application.RagQueryService;
 import com.teamproject.japan_newhire_rag_backend.rag.citation.CitationValidator;
-import com.teamproject.japan_newhire_rag_backend.rag.evidence.EvidenceThresholdChecker;
 import com.teamproject.japan_newhire_rag_backend.rag.model.service.EmbeddingModelSelectionService;
 import com.teamproject.japan_newhire_rag_backend.rag.orchestration.RagOrchestrator;
 import com.teamproject.japan_newhire_rag_backend.rag.search.SearchResultVerifier;
@@ -43,11 +42,6 @@ public class RagAiConfiguration {
     }
 
     @Bean
-    public EvidenceThresholdChecker evidenceThresholdChecker() {
-        return new EvidenceThresholdChecker();
-    }
-
-    @Bean
     public CitationValidator citationValidator() {
         return new CitationValidator();
     }
@@ -56,15 +50,11 @@ public class RagAiConfiguration {
     public RagOrchestrator ragOrchestrator(
             AiRagClient aiRagClient,
             SearchResultVerifier searchResultVerifier,
-            EvidenceThresholdChecker evidenceThresholdChecker,
-            CitationValidator citationValidator,
-            @Value("${rag.evidence-threshold}") double evidenceThreshold) {
+            CitationValidator citationValidator) {
         return new RagOrchestrator(
                 aiRagClient,
                 searchResultVerifier,
-                evidenceThresholdChecker,
-                citationValidator,
-                evidenceThreshold);
+                citationValidator);
     }
 
     @Bean

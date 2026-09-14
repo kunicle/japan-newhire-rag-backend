@@ -1,25 +1,29 @@
 package com.teamproject.japan_newhire_rag_backend.domain.onboarding.service;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
-
-import java.time.Clock;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.util.List;
-import java.util.Set;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import org.mockito.Mock;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCode;
@@ -27,6 +31,7 @@ import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessExcept
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserContext;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserProvider;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.MyOnboardingResponse;
+import com.teamproject.japan_newhire_rag_backend.domain.onboarding.controller.dto.OnboardingCompletionRequest;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.entity.OnboardingAssignment;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.entity.OnboardingProgress;
 import com.teamproject.japan_newhire_rag_backend.domain.onboarding.entity.OnboardingTask;
@@ -87,7 +92,7 @@ class MyOnboardingServiceTest {
                 OnboardingCompletionStatus.NOT_STARTED);
 
         when(progressRepository
-                .findByOnboardingAssignment_EmployeeIdOrderByOnboardingAssignment_DueDateAsc(
+                .findByOnboardingAssignment_EmployeeIdAndOnboardingAssignment_OnboardingTask_ActiveTrueOrderByOnboardingAssignment_DueDateAsc(
                         200L))
                 .thenReturn(List.of(
                         completed,
@@ -113,7 +118,7 @@ class MyOnboardingServiceTest {
                 responses.get(2).dueDate());
 
         verify(progressRepository)
-                .findByOnboardingAssignment_EmployeeIdOrderByOnboardingAssignment_DueDateAsc(
+                .findByOnboardingAssignment_EmployeeIdAndOnboardingAssignment_OnboardingTask_ActiveTrueOrderByOnboardingAssignment_DueDateAsc(
                         200L);
     }
 
@@ -122,7 +127,7 @@ class MyOnboardingServiceTest {
         stubCurrentEmployee(200L);
 
         when(progressRepository
-                .findByOnboardingAssignment_EmployeeIdOrderByOnboardingAssignment_DueDateAsc(
+                .findByOnboardingAssignment_EmployeeIdAndOnboardingAssignment_OnboardingTask_ActiveTrueOrderByOnboardingAssignment_DueDateAsc(
                         200L))
                 .thenReturn(List.of());
 
@@ -223,4 +228,84 @@ class MyOnboardingServiceTest {
 
         return progress;
     }
+
+        @Test
+        void cannotStartInactiveOnboardingTask() {
+        stubCurrentEmployee(200L);
+
+        OnboardingTask task = mock(OnboardingTask.class);
+        OnboardingAssignment assignment = mock(OnboardingAssignment.class);
+        OnboardingProgress progress = mock(OnboardingProgress.class);
+
+        when(progressRepository
+                .findByOnboardingAssignment_OnboardingAssignmentId(16L))
+                .thenReturn(Optional.of(progress));
+
+        when(progress.getOnboardingAssignment())
+                .thenReturn(assignment);
+
+        when(assignment.getEmployeeId())
+                .thenReturn(200L);
+
+        when(assignment.getOnboardingTask())
+                .thenReturn(task);
+
+        when(task.isActive())
+                .thenReturn(false);
+
+        BusinessException exception =
+                assertThrows(
+                        BusinessException.class,
+                        () -> service.start(16L));
+
+        assertEquals(
+                ErrorCode.CONFLICT,
+                exception.getErrorCode());
+
+        verify(progress, never()).start();
+        }
+
+        @Test
+        void cannotCompleteInactiveOnboardingTask() {
+        stubCurrentEmployee(200L);
+
+        OnboardingTask task = mock(OnboardingTask.class);
+        OnboardingAssignment assignment = mock(OnboardingAssignment.class);
+        OnboardingProgress progress = mock(OnboardingProgress.class);
+
+        when(progressRepository
+                .findByOnboardingAssignment_OnboardingAssignmentId(16L))
+                .thenReturn(Optional.of(progress));
+
+        when(progress.getOnboardingAssignment())
+                .thenReturn(assignment);
+
+        when(assignment.getEmployeeId())
+                .thenReturn(200L);
+
+        when(assignment.getOnboardingTask())
+                .thenReturn(task);
+
+        when(task.isActive())
+                .thenReturn(false);
+
+        OnboardingCompletionRequest request =
+                new OnboardingCompletionRequest("완료 메모");
+
+        BusinessException exception =
+                assertThrows(
+                        BusinessException.class,
+                        () -> service.complete(16L, request));
+
+        assertEquals(
+                ErrorCode.CONFLICT,
+                exception.getErrorCode());
+
+        verify(progress, never())
+                .complete(anyString(), any(LocalDateTime.class));
+
+        verify(assignment, never())
+                .complete();
+        }
+
 }
