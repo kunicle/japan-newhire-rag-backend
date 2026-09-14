@@ -7,6 +7,9 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +42,7 @@ import com.teamproject.japan_newhire_rag_backend.domain.auth.repository.RoleRepo
 public class DocumentManagementQueryService {
 
     private static final String ACTIVE = "ACTIVE";
+    private static final int MAX_PAGE_SIZE = 100;
     private static final Comparator<DocumentVersion> VERSION_ORDER = Comparator
             .comparing(DocumentVersion::getCreatedAt, Comparator.reverseOrder())
             .thenComparing(DocumentVersion::getDocumentVersionId, Comparator.reverseOrder());
@@ -69,36 +73,58 @@ public class DocumentManagementQueryService {
         this.roleRepository = roleRepository;
     }
 
-    public List<DocumentManagementListItemResponse> getDocuments() {
-        List<Document> documents = documentRepository
-                .findByDocumentStatusAndDeletedAtIsNullOrderByCreatedAtDesc(ACTIVE);
-        if (documents.isEmpty()) return List.of();
+    public Page<DocumentManagementListItemResponse> getDocuments(String keyword, int page, int size) {
+        validatePage(page, size);
+        String normalizedKeyword = normalizeKeyword(keyword);
+        PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Document> documentPage =
+                documentRepository.findAllByDocumentStatusAndKeyword(ACTIVE, normalizedKeyword, pageable);
 
+        List<Document> documents = documentPage.getContent();
         Map<Long, DocumentCategory> categories = categories(documents);
         List<Long> documentIds = documents.stream().map(Document::getDocumentId).toList();
-        Map<Long, List<DocumentVersion>> versionsByDocument = documentVersionRepository
-                .findByDocument_DocumentIdIn(documentIds).stream()
-                .collect(Collectors.groupingBy(version -> version.getDocument().getDocumentId()));
+        Map<Long, List<DocumentVersion>> versionsByDocument = documentIds.isEmpty()
+                ? Map.of()
+                : documentVersionRepository.findByDocument_DocumentIdIn(documentIds).stream()
+                        .collect(Collectors.groupingBy(version -> version.getDocument().getDocumentId()));
 
-        return documents.stream().map(document -> {
-            DocumentCategory category = categories.get(
-                    document.getDocumentCategory().getDocumentCategoryId());
-            DocumentVersion latest = versionsByDocument
-                    .getOrDefault(document.getDocumentId(), List.of()).stream()
-                    .sorted(VERSION_ORDER).findFirst().orElse(null);
-            return new DocumentManagementListItemResponse(
-                    document.getDocumentId(),
-                    document.getDocumentName(),
-                    category.getDocumentCategoryId(),
-                    category.getCategoryCode(),
-                    category.getCategoryName(),
-                    document.getDocumentStatus(),
-                    latest == null ? null : latest.getDocumentVersionId(),
-                    latest == null ? null : latest.getVersionName(),
-                    latest == null ? null : latest.getPublicationStatus(),
-                    latest != null && latest.isActive(),
-                    document.getCreatedAt());
-        }).toList();
+        return documentPage.map(document -> toListItem(document, categories, versionsByDocument));
+    }
+
+    private DocumentManagementListItemResponse toListItem(
+            Document document,
+            Map<Long, DocumentCategory> categories,
+            Map<Long, List<DocumentVersion>> versionsByDocument) {
+        DocumentCategory category = categories.get(
+                document.getDocumentCategory().getDocumentCategoryId());
+        DocumentVersion latest = versionsByDocument
+                .getOrDefault(document.getDocumentId(), List.of()).stream()
+                .sorted(VERSION_ORDER).findFirst().orElse(null);
+        return new DocumentManagementListItemResponse(
+                document.getDocumentId(),
+                document.getDocumentName(),
+                category.getDocumentCategoryId(),
+                category.getCategoryCode(),
+                category.getCategoryName(),
+                document.getDocumentStatus(),
+                latest == null ? null : latest.getDocumentVersionId(),
+                latest == null ? null : latest.getVersionName(),
+                latest == null ? null : latest.getPublicationStatus(),
+                latest != null && latest.isActive(),
+                document.getCreatedAt());
+    }
+
+    private String normalizeKeyword(String keyword) {
+        return (keyword == null || keyword.isBlank()) ? null : keyword.trim();
+    }
+
+    private void validatePage(int page, int size) {
+        if (page < 0) {
+            throw new IllegalArgumentException("page must be at least 0");
+        }
+        if (size <= 0 || size > MAX_PAGE_SIZE) {
+            throw new IllegalArgumentException("size must be between 1 and " + MAX_PAGE_SIZE);
+        }
     }
 
     public DocumentManagementDetailResponse getDocument(Long documentId) {
