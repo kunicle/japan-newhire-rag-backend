@@ -249,20 +249,27 @@ class RagQueryControllerTest {
         CurrentUserContext currentUser = currentUser();
         LocalDateTime askedAt = LocalDateTime.of(2026, 8, 19, 10, 0);
         when(currentUserProvider.getCurrentUser()).thenReturn(currentUser);
-        when(ragQuestionHistoryService.getQuestionHistory(currentUser))
-                .thenReturn(List.of(new RagQuestionHistoryItem(
-                        10L, "연차는 몇 일인가요?", "ANSWERED", askedAt)));
+        when(ragQuestionHistoryService.getQuestionHistory(currentUser, null, 0, 10))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(
+                        List.of(new RagQuestionHistoryItem(
+                                10L, "연차는 몇 일인가요?", "ANSWERED", askedAt)),
+                        org.springframework.data.domain.PageRequest.of(0, 10),
+                        1));
 
         mockMvc.perform(get("/api/rag/questions/me")
                         .header("Authorization", "Bearer " + ACCESS_TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].questionId").value(10))
-                .andExpect(jsonPath("$[0].question").value("연차는 몇 일인가요?"))
-                .andExpect(jsonPath("$[0].status").value("ANSWERED"))
-                .andExpect(jsonPath("$[0].askedAt").value("2026-08-19T10:00:00"));
+                .andExpect(jsonPath("$.content[0].questionId").value(10))
+                .andExpect(jsonPath("$.content[0].question").value("연차는 몇 일인가요?"))
+                .andExpect(jsonPath("$.content[0].status").value("ANSWERED"))
+                .andExpect(jsonPath("$.content[0].askedAt").value("2026-08-19T10:00:00"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1));
 
         verify(currentUserProvider).getCurrentUser();
-        verify(ragQuestionHistoryService).getQuestionHistory(currentUser);
+        verify(ragQuestionHistoryService).getQuestionHistory(currentUser, null, 0, 10);
     }
 
     @Test
@@ -270,15 +277,36 @@ class RagQueryControllerTest {
         authenticateAs(RoleType.EMPLOYEE);
         CurrentUserContext currentUser = currentUser();
         when(currentUserProvider.getCurrentUser()).thenReturn(currentUser);
-        when(ragQuestionHistoryService.getQuestionHistory(currentUser)).thenReturn(List.of());
+        when(ragQuestionHistoryService.getQuestionHistory(currentUser, null, 0, 10))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(
+                        List.of(), org.springframework.data.domain.PageRequest.of(0, 10), 0));
 
         mockMvc.perform(get("/api/rag/questions/me")
                         .header("Authorization", "Bearer " + ACCESS_TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$").isEmpty());
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content").isEmpty());
 
-        verify(ragQuestionHistoryService).getQuestionHistory(currentUser);
+        verify(ragQuestionHistoryService).getQuestionHistory(currentUser, null, 0, 10);
+    }
+
+    @Test
+    void passesKeywordAndPageQueryParametersThrough() throws Exception {
+        authenticateAs(RoleType.EMPLOYEE);
+        CurrentUserContext currentUser = currentUser();
+        when(currentUserProvider.getCurrentUser()).thenReturn(currentUser);
+        when(ragQuestionHistoryService.getQuestionHistory(currentUser, "연차", 2, 5))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(
+                        List.of(), org.springframework.data.domain.PageRequest.of(2, 5), 0));
+
+        mockMvc.perform(get("/api/rag/questions/me")
+                        .param("keyword", "연차")
+                        .param("page", "2")
+                        .param("size", "5")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk());
+
+        verify(ragQuestionHistoryService).getQuestionHistory(currentUser, "연차", 2, 5);
     }
 
     @Test
@@ -298,7 +326,9 @@ class RagQueryControllerTest {
                                 new RagCitationSnapshot(
                                         101L, "취업규칙", "v1", "제5조", "첫 번째 근거"),
                                 new RagCitationSnapshot(
-                                        102L, "휴가규정", "v2", null, "두 번째 근거"))));
+                                        102L, "휴가규정", "v2", null, "두 번째 근거")),
+                        null,
+                        null));
 
         mockMvc.perform(get("/api/rag/questions/10")
                         .header("Authorization", "Bearer " + ACCESS_TOKEN))
@@ -316,6 +346,32 @@ class RagQueryControllerTest {
                 .andExpect(jsonPath("$.citations[1].articleNumber").value(nullValue()));
 
         verify(ragQuestionHistoryService).getQuestionDetail(currentUser, 10L);
+    }
+
+    @Test
+    void returnsFailedQuestionDetailWithFailureInfo() throws Exception {
+        authenticateAs(RoleType.EMPLOYEE);
+        CurrentUserContext currentUser = currentUser();
+        LocalDateTime askedAt = LocalDateTime.of(2026, 9, 14, 11, 47, 2);
+        when(currentUserProvider.getCurrentUser()).thenReturn(currentUser);
+        when(ragQuestionHistoryService.getQuestionDetail(currentUser, 54L))
+                .thenReturn(new RagQuestionHistoryDetail(
+                        54L,
+                        "신입사원 웰컴 포인트는 얼마인가요?",
+                        "FAILED",
+                        askedAt,
+                        null,
+                        List.of(),
+                        "API_ERROR",
+                        "외부 AI 서비스 호출에 실패했습니다."));
+
+        mockMvc.perform(get("/api/rag/questions/54")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.answer").value(nullValue()))
+                .andExpect(jsonPath("$.failureType").value("API_ERROR"))
+                .andExpect(jsonPath("$.failureReason").value("외부 AI 서비스 호출에 실패했습니다."));
     }
 
     @Test
