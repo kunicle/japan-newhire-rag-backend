@@ -12,4 +12,8 @@ public interface QuizQuestionRepository
     List<QuizQuestion>
     findAllByQuiz_QuizIdAndActiveTrueOrderByQuestionOrderAsc(
             Long quizId);
+
+    List<QuizQuestion>
+    findAllByQuiz_QuizIdOrderByQuestionOrderAsc(
+            Long quizId);
 }

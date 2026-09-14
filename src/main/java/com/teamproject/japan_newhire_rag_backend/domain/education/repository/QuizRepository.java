@@ -13,6 +13,15 @@ public interface QuizRepository extends JpaRepository<Quiz, Long> {
     @EntityGraph(attributePaths = {"course", "courseModule"})
     Optional<Quiz> findByQuizIdAndActiveTrue(Long quizId);
 
+    @EntityGraph(attributePaths = {"course", "courseModule"})
+    List<Quiz> findAllByCourse_CourseIdOrderByCreatedAtDescQuizIdDesc(
+            Long courseId);
+
+    @EntityGraph(attributePaths = {"course", "courseModule"})
+    Optional<Quiz> findByQuizIdAndCourse_CourseId(
+            Long quizId,
+            Long courseId);
+
     List<Quiz> findAllByCourse_CourseIdAndActiveTrueOrderByQuizIdAsc(
             Long courseId);
 }
