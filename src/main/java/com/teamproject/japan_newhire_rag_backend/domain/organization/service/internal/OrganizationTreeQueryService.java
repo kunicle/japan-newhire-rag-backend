@@ -1,5 +1,6 @@
 package com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal;
 
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationType;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.ManagerRelationRepository;
@@ -130,6 +131,8 @@ public class OrganizationTreeQueryService {
         Map<Long, List<OrganizationEmployeeResponse>> employeesByDepartmentId = new HashMap<>();
         employeeRepository.findByDeletedAtIsNullAndDepartment_DeletedAtIsNull().stream()
                 .filter(employee -> employee.getDeletedAt() == null)
+                .filter(employee -> employee.getEmploymentStatus() == EmploymentStatus.EMPLOYED
+                        || employee.getEmploymentStatus() == EmploymentStatus.LEAVE)
                 .filter(employee -> departmentsById.containsKey(
                         employee.getDepartment().getDepartmentId()))
                 .map(employee -> toEmployeeResponse(employee, managers.get(employee.getEmployeeId())))
@@ -181,7 +184,8 @@ public class OrganizationTreeQueryService {
                 employee.getJobGrade().getGradeLevel(),
                 employee.getHireDate(),
                 employee.getDepartment().getDepartmentName(),
-                managerEmployeeId);
+                managerEmployeeId,
+                employee.getEmploymentStatus());
     }
 
     private int countDepartments(List<OrganizationDepartmentResponse> departments) {

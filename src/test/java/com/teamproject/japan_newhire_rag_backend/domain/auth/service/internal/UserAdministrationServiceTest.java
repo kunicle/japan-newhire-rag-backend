@@ -11,6 +11,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal.DirectManagerCommandService;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.repository.ManagerRelationRepository;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.entity.ManagerRelation;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.error.OrganizationErrorCode;
 import java.util.Optional;
 import java.util.Set;
 
@@ -59,6 +63,7 @@ class UserAdministrationServiceTest {
     RoleRepository roleRepository;
     UserRoleRepository userRoleRepository;
     UserAdministrationService service;
+    ManagerRelationRepository managerRelations;
 
     @BeforeEach
     void setUp() {
@@ -70,6 +75,9 @@ class UserAdministrationServiceTest {
         auditLogRecordService = mock(AuditLogRecordService.class);
         roleRepository = mock(RoleRepository.class);
         userRoleRepository = mock(UserRoleRepository.class);
+        managerRelations = mock(ManagerRelationRepository.class);
+        var managers = new DirectManagerCommandService(employeeRepository, managerRelations,
+                appUserRepository, currentUserProvider, auditLogRecordService, java.time.Clock.systemUTC());
         service = new UserAdministrationService(
                 appUserRepository,
                 employeeRepository,
@@ -79,7 +87,7 @@ class UserAdministrationServiceTest {
                 currentUserProvider,
                 auditLogRecordService,
                 roleRepository,
-                userRoleRepository);
+                userRoleRepository, managers);
         when(currentUserProvider.getCurrentUser()).thenReturn(new CurrentUserContext(
                 99L, 999L, Set.of(RoleType.SYSTEM_ADMIN), 1L, 1,
                 EmployeeType.GENERAL));
@@ -99,6 +107,7 @@ class UserAdministrationServiceTest {
         when(employeeRepository.save(any())).thenAnswer(invocation -> {
             Employee value = invocation.getArgument(0);
             ReflectionTestUtils.setField(value, "employeeId", 2L);
+            when(employeeRepository.findForUpdateByEmployeeId(2L)).thenReturn(Optional.of(value));
             return value;
         });
 
@@ -153,8 +162,10 @@ class UserAdministrationServiceTest {
                 missingGrade.getErrorCode());
     }
 
-    @Test
-    void provisionsNewHireWithExactlyEmployeeRoleAndAuditRecords() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.NullSource
+    @org.junit.jupiter.params.provider.ValueSource(longs = {30, 31, 32, 33, 2, 35})
+    void provisionsNewHireWithOptionalManagerAndExistingValidation(Long managerId) {
         Department department = activeDepartment();
         JobGrade jobGrade = activeJobGrade();
         AppUser actor = AppUser.createActive("hr@example.com", "hash");
@@ -173,6 +184,7 @@ class UserAdministrationServiceTest {
         when(employeeRepository.save(any())).thenAnswer(invocation -> {
             Employee value = invocation.getArgument(0);
             ReflectionTestUtils.setField(value, "employeeId", 2L);
+            when(employeeRepository.findForUpdateByEmployeeId(2L)).thenReturn(Optional.of(value));
             return value;
         });
         when(appUserRepository.findForUpdateByAppUserId(1L))
@@ -188,9 +200,32 @@ class UserAdministrationServiceTest {
             return value;
         });
 
+        if (managerId != null && managerId != 31L && managerId != 2L) {
+            JobGrade managerGrade = activeJobGrade();
+            when(jobGrade.getGradeLevel()).thenReturn(5);
+            when(managerGrade.getGradeLevel()).thenReturn(managerId == 35L ? 6 : 2);
+            Employee manager = Employee.createEmployed(actor, department, managerGrade,
+                    "M30", "Manager", EmployeeType.GENERAL, LocalDate.of(2020, 1, 1));
+            ReflectionTestUtils.setField(manager, "employeeId", managerId);
+            if (managerId == 32L) manager.changeEmploymentStatus(EmploymentStatus.RETIRED);
+            if (managerId == 33L) ReflectionTestUtils.setField(manager, "deletedAt", java.time.LocalDateTime.now());
+            when(employeeRepository.findById(managerId)).thenReturn(Optional.of(manager));
+        }
+        var request = new NewHireProvisioningRequest(
+                "new@example.com", "raw-password", "E-100", "New Hire",
+                10L, 20L, LocalDate.of(2026, 8, 13), managerId);
+        if (managerId != null && managerId != 30L) {
+            var expected = managerId == 2L ? OrganizationErrorCode.SELF_MANAGER_NOT_ALLOWED
+                    : managerId == 35L ? OrganizationErrorCode.MANAGER_GRADE_NOT_ALLOWED
+                    : OrganizationErrorCode.MANAGER_NOT_FOUND;
+            assertEquals(expected, assertThrows(BusinessException.class,
+                    () -> service.provisionNewHire(request)).getErrorCode());
+            verify(managerRelations, never()).saveAndFlush(any());
+            return;
+        }
         var response = service.provisionNewHire(new NewHireProvisioningRequest(
                 "new@example.com", "raw-password", "E-100", "New Hire",
-                10L, 20L, LocalDate.of(2026, 8, 13)));
+                10L, 20L, LocalDate.of(2026, 8, 13), managerId));
 
         assertEquals(Set.of(RoleType.EMPLOYEE), response.roles());
         ArgumentCaptor<Employee> employeeCaptor = ArgumentCaptor.forClass(Employee.class);
@@ -198,8 +233,22 @@ class UserAdministrationServiceTest {
         assertEquals(EmployeeType.NEW_HIRE, employeeCaptor.getValue().getEmployeeType());
         ArgumentCaptor<AuditLogRecordCommand> auditCaptor =
                 ArgumentCaptor.forClass(AuditLogRecordCommand.class);
-        verify(auditLogRecordService, org.mockito.Mockito.times(2)).record(auditCaptor.capture());
-        assertEquals(Set.of(AuditActionType.USER_CREATED, AuditActionType.ROLE_GRANTED),
+        verify(auditLogRecordService, org.mockito.Mockito.times(managerId == null ? 2 : 3)).record(auditCaptor.capture());
+        if (managerId == null) {
+            org.mockito.Mockito.verifyNoInteractions(managerRelations);
+        } else {
+            var relationCaptor = ArgumentCaptor.forClass(ManagerRelation.class);
+            verify(managerRelations).saveAndFlush(relationCaptor.capture());
+            assertEquals(employeeCaptor.getValue(), relationCaptor.getValue().getEmployee());
+            assertEquals(managerId, relationCaptor.getValue().getManagerEmployee().getEmployeeId());
+            assertTrue(auditCaptor.getAllValues().stream().anyMatch(command ->
+                    command.actionType() == AuditActionType.DIRECT_MANAGER_CHANGED
+                            && command.targetId().equals(response.employeeId())
+                            && command.actorUserId().equals(99L)
+                            && managerId.equals(command.changedValue().get("managerEmployeeId"))));
+        }
+        assertEquals(managerId == null ? Set.of(AuditActionType.USER_CREATED, AuditActionType.ROLE_GRANTED)
+                : Set.of(AuditActionType.USER_CREATED, AuditActionType.ROLE_GRANTED, AuditActionType.DIRECT_MANAGER_CHANGED),
                 auditCaptor.getAllValues().stream().map(AuditLogRecordCommand::actionType)
                         .collect(java.util.stream.Collectors.toSet()));
     }
@@ -280,7 +329,7 @@ class UserAdministrationServiceTest {
         verify(userRoleRepository).saveAndFlush(any(UserRole.class));
         ArgumentCaptor<AuditLogRecordCommand> auditCaptor =
                 ArgumentCaptor.forClass(AuditLogRecordCommand.class);
-        verify(auditLogRecordService, org.mockito.Mockito.times(2)).record(auditCaptor.capture());
+        verify(auditLogRecordService, org.mockito.Mockito.times(managerId == null ? 2 : 3)).record(auditCaptor.capture());
         assertEquals(Set.of(AuditActionType.ROLE_GRANTED, AuditActionType.ROLE_REVOKED),
                 auditCaptor.getAllValues().stream()
                         .map(AuditLogRecordCommand::actionType).collect(java.util.stream.Collectors.toSet()));

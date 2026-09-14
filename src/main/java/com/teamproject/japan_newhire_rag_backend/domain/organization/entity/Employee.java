@@ -67,6 +67,13 @@ public class Employee extends BaseEntity {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    public void changeEmploymentStatus(EmploymentStatus employmentStatus) {
+        if (employmentStatus == null) {
+            throw new IllegalArgumentException("employmentStatus must not be null");
+        }
+        this.employmentStatus = employmentStatus;
+    }
+
     public void changeOrganization(Department department, JobGrade jobGrade) {
         this.department = department;
         this.jobGrade = jobGrade;

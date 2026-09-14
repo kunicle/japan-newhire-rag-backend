@@ -155,6 +155,27 @@ class OrganizationTreeQueryServiceTest {
                 exception.getErrorCode());
     }
 
+    @Test
+    void includesEmployedAndLeaveButExcludesRetiredEmployees() {
+        Department root = department(1L, "ROOT", "Root", null, 0, null);
+        Employee employed = employee(10L, "E10", "Employed", root, 1L, "Junior", 1);
+        Employee leave = employee(20L, "E20", "Leave", root, 1L, "Junior", 1);
+        Employee retired = employee(30L, "E30", "Retired", root, 1L, "Junior", 1);
+        when(leave.getEmploymentStatus()).thenReturn(
+                com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus.LEAVE);
+        when(retired.getEmploymentStatus()).thenReturn(
+                com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus.RETIRED);
+        when(departmentRepository.findByDeletedAtIsNull()).thenReturn(List.of(root));
+        when(employeeRepository.findByDeletedAtIsNullAndDepartment_DeletedAtIsNull())
+                .thenReturn(List.of(retired, leave, employed));
+
+        var result = service.getOrganizationTree().departments().get(0).employees();
+        assertEquals(List.of(10L, 20L), result.stream()
+                .map(OrganizationEmployeeResponse::employeeId).toList());
+        assertEquals(com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus.LEAVE,
+                result.get(1).employmentStatus());
+    }
+
     private Department department(
             Long id,
             String code,
@@ -195,6 +216,8 @@ class OrganizationTreeQueryServiceTest {
             int gradeLevel
     ) {
         Employee employee = mock(Employee.class);
+        when(employee.getEmploymentStatus()).thenReturn(
+                com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus.EMPLOYED);
         JobGrade jobGrade = mock(JobGrade.class);
         when(employee.getEmployeeId()).thenReturn(id);
         when(employee.getEmployeeNumber()).thenReturn(number);

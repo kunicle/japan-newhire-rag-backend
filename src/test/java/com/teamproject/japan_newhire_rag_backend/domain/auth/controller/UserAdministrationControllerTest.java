@@ -197,6 +197,31 @@ class UserAdministrationControllerTest {
                 .andExpect(jsonPath("$.roles[0]").value("EMPLOYEE"));
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.NullSource
+    @org.junit.jupiter.params.provider.ValueSource(longs = {30})
+    void acceptsOptionalManagerId(Long managerId) throws Exception {
+        authenticateAs(RoleType.HR_MANAGER);
+        mockMvc.perform(post("/api/hr/new-hires")
+                .header("Authorization", "Bearer token").contentType(MediaType.APPLICATION_JSON)
+                .content(newHireRequestJson().replace("}", ",\"managerEmployeeId\":" + managerId + "}")))
+                .andExpect(status().isCreated());
+        var captor = org.mockito.ArgumentCaptor.forClass(
+                com.teamproject.japan_newhire_rag_backend.domain.auth.controller.dto.NewHireProvisioningRequest.class);
+        org.mockito.Mockito.verify(service).provisionNewHire(captor.capture());
+        org.junit.jupiter.api.Assertions.assertEquals(managerId, captor.getValue().managerEmployeeId());
+    }
+
+    @Test
+    void rejectsNonPositiveManagerId() throws Exception {
+        authenticateAs(RoleType.HR_MANAGER);
+        mockMvc.perform(post("/api/hr/new-hires")
+                .header("Authorization", "Bearer token").contentType(MediaType.APPLICATION_JSON)
+                .content(newHireRequestJson().replace("}", ",\"managerEmployeeId\":0}")))
+                .andExpect(status().isBadRequest());
+        org.mockito.Mockito.verifyNoInteractions(service);
+    }
+
     private void authenticateAs(RoleType role) {
         when(accessTokenService.validateAndExtractAppUserId("token")).thenReturn(1L);
         when(authenticationQueryService.load(1L))

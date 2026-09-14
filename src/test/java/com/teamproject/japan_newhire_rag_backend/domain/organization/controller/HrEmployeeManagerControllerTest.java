@@ -104,10 +104,10 @@ class HrEmployeeManagerControllerTest {
         authenticateAs(RoleType.HR_MANAGER);
         mockMvc.perform(patch("/api/hr/employees/10/organization")
                 .header("Authorization", "Bearer token").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"departmentId\":1,\"jobGradeId\":2,\"managerEmployeeId\":null}"))
+                .content("{\"departmentId\":1,\"jobGradeId\":2,\"employmentStatus\":\"LEAVE\",\"managerEmployeeId\":null}"))
                 .andExpect(status().isNoContent());
         org.mockito.Mockito.verify(organizationService).changeOrganization(10L,
-                new com.teamproject.japan_newhire_rag_backend.domain.organization.controller.dto.ChangeEmployeeOrganizationRequest(1L, 2L, null));
+                new com.teamproject.japan_newhire_rag_backend.domain.organization.controller.dto.ChangeEmployeeOrganizationRequest(1L, 2L, null, com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus.LEAVE));
     }
 
     @Test
@@ -115,7 +115,7 @@ class HrEmployeeManagerControllerTest {
         for (RoleType role : Set.of(RoleType.EMPLOYEE, RoleType.MANAGER, RoleType.SYSTEM_ADMIN)) {
             authenticateAs(role);
             mockMvc.perform(patch("/api/hr/employees/10/organization").header("Authorization", "Bearer token")
-                    .contentType(MediaType.APPLICATION_JSON).content("{\"departmentId\":1,\"jobGradeId\":2}"))
+                    .contentType(MediaType.APPLICATION_JSON).content("{\"departmentId\":1,\"jobGradeId\":2,\"employmentStatus\":\"LEAVE\"}"))
                     .andExpect(status().isForbidden());
             mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/hr/departments")
                     .header("Authorization", "Bearer token").contentType(MediaType.APPLICATION_JSON)
@@ -131,7 +131,7 @@ class HrEmployeeManagerControllerTest {
     @Test
     void anonymousOrganizationWriteIsUnauthorized() throws Exception {
         mockMvc.perform(patch("/api/hr/employees/10/organization").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"departmentId\":1,\"jobGradeId\":2}")).andExpect(status().isUnauthorized());
+                .content("{\"departmentId\":1,\"jobGradeId\":2,\"employmentStatus\":\"LEAVE\"}")).andExpect(status().isUnauthorized());
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/hr/departments")
                 .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isUnauthorized());
         mockMvc.perform(patch("/api/hr/departments/1").contentType(MediaType.APPLICATION_JSON)
@@ -142,8 +142,23 @@ class HrEmployeeManagerControllerTest {
     void invalidOrganizationBodyIsBadRequest() throws Exception {
         authenticateAs(RoleType.HR_MANAGER);
         mockMvc.perform(patch("/api/hr/employees/10/organization").header("Authorization", "Bearer token")
-                .contentType(MediaType.APPLICATION_JSON).content("{\"departmentId\":0,\"jobGradeId\":2}"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"departmentId\":0,\"jobGradeId\":2,\"employmentStatus\":\"LEAVE\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void organizationRequiresValidEmploymentStatus() throws Exception {
+        authenticateAs(RoleType.HR_MANAGER);
+        for (String body : java.util.List.of(
+                "{\"departmentId\":1,\"jobGradeId\":2}",
+                "{\"departmentId\":1,\"jobGradeId\":2,\"employmentStatus\":null}",
+                "{\"departmentId\":1,\"jobGradeId\":2,\"employmentStatus\":\"UNKNOWN\"}")) {
+            mockMvc.perform(patch("/api/hr/employees/10/organization")
+                    .header("Authorization", "Bearer token")
+                    .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        org.mockito.Mockito.verifyNoInteractions(organizationService);
     }
 
     private org.springframework.test.web.servlet.ResultActions request(String body) throws Exception {

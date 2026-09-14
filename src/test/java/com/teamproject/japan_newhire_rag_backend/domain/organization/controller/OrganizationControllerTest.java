@@ -94,6 +94,7 @@ class OrganizationControllerTest {
                 .andExpect(jsonPath("$.departments[0].departmentCode").value("DEV"))
                 .andExpect(jsonPath("$.departments[0].employees[0].employeeNumber").value("E-001"))
                 .andExpect(jsonPath("$.departments[0].employees[0].jobGradeName").value("Junior"))
+                .andExpect(jsonPath("$.departments[0].employees[0].employmentStatus").value("LEAVE"))
                 .andExpect(jsonPath("$..passwordHash").doesNotExist())
                 .andExpect(jsonPath("$..failedLoginCount").doesNotExist())
                 .andExpect(jsonPath("$..lockedUntil").doesNotExist())
@@ -140,7 +141,7 @@ class OrganizationControllerTest {
     private OrganizationResponse response() {
         OrganizationEmployeeResponse employee = new OrganizationEmployeeResponse(
                 10L, "E-001", "Kim", 100L, 200L, "Junior", 1,
-                LocalDate.of(2026, 1, 2));
+                LocalDate.of(2026, 1, 2), "Development", null, com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus.LEAVE);
         OrganizationDepartmentResponse department = new OrganizationDepartmentResponse(
                 100L, "DEV", "Development", null, 1,
                 List.of(employee), List.of());
