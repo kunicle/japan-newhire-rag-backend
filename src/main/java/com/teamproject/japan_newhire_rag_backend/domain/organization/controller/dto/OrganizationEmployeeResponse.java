@@ -2,6 +2,8 @@ package com.teamproject.japan_newhire_rag_backend.domain.organization.controller
 
 import java.time.LocalDate;
 
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus;
+
 public record OrganizationEmployeeResponse(
         Long employeeId,
         String employeeNumber,
@@ -13,13 +15,32 @@ public record OrganizationEmployeeResponse(
         LocalDate hireDate,
         String employeeType,
         String departmentName,
-        Long managerEmployeeId
+        Long managerEmployeeId,
+        EmploymentStatus employmentStatus
 ) {
-        public OrganizationEmployeeResponse(Long employeeId, String employeeNumber,
-                String employeeName, Long departmentId, Long jobGradeId, String jobGradeName,
-                Integer jobGradeLevel, LocalDate hireDate) {
-
-        this(employeeId, employeeNumber, employeeName, departmentId, jobGradeId,
-                jobGradeName, jobGradeLevel, hireDate, null, null, null);
-        }
+    public OrganizationEmployeeResponse(
+            Long employeeId,
+            String employeeNumber,
+            String employeeName,
+            Long departmentId,
+            Long jobGradeId,
+            String jobGradeName,
+            Integer jobGradeLevel,
+            LocalDate hireDate
+    ) {
+        this(
+                employeeId,
+                employeeNumber,
+                employeeName,
+                departmentId,
+                jobGradeId,
+                jobGradeName,
+                jobGradeLevel,
+                hireDate,
+                null,
+                null,
+                null,
+                null
+        );
+    }
 }

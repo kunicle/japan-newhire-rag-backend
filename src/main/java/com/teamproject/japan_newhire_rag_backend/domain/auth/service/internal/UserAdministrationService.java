@@ -1,6 +1,7 @@
 package com.teamproject.japan_newhire_rag_backend.domain.auth.service.internal;
 
 import java.time.LocalDateTime;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal.DirectManagerCommandService;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
@@ -57,6 +58,7 @@ public class UserAdministrationService {
     private final AuditLogRecordService auditLogRecordService;
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
+    private final DirectManagerCommandService directManagerCommandService;
 
     public UserAdministrationService(
             AppUserRepository appUserRepository,
@@ -67,7 +69,8 @@ public class UserAdministrationService {
             CurrentUserProvider currentUserProvider,
             AuditLogRecordService auditLogRecordService,
             RoleRepository roleRepository,
-            UserRoleRepository userRoleRepository
+            UserRoleRepository userRoleRepository,
+            DirectManagerCommandService directManagerCommandService
     ) {
         this.appUserRepository = appUserRepository;
         this.employeeRepository = employeeRepository;
@@ -78,6 +81,7 @@ public class UserAdministrationService {
         this.auditLogRecordService = auditLogRecordService;
         this.roleRepository = roleRepository;
         this.userRoleRepository = userRoleRepository;
+        this.directManagerCommandService = directManagerCommandService;
     }
 
     public CreateUserResponse createUser(CreateUserRequest request) {
@@ -149,6 +153,9 @@ public class UserAdministrationService {
         UserRolesResponse roleResult = updateRoles(
                 created.appUserId(),
                 new UpdateUserRolesRequest(Set.of(RoleType.EMPLOYEE)));
+        if (request.managerEmployeeId() != null) {
+            directManagerCommandService.changeManager(created.employeeId(), request.managerEmployeeId());
+        }
         return new NewHireProvisioningResponse(
                 created.appUserId(),
                 created.employeeId(),
