@@ -377,8 +377,9 @@ CREATE TABLE external_api_call_log (
         REFERENCES rag_question (rag_question_id) ON DELETE SET NULL,
     CONSTRAINT fk_external_api_call_log_job FOREIGN KEY (document_processing_job_id)
         REFERENCES document_processing_job (document_processing_job_id) ON DELETE SET NULL,
-    CONSTRAINT ck_external_api_call_context CHECK (
-        rag_question_id IS NOT NULL OR document_processing_job_id IS NOT NULL),
+    -- No CHECK enforcing rag_question_id/document_processing_job_id presence here:
+    -- MySQL 8.0 rejects a CHECK referencing a column bound by an ON DELETE SET NULL FK
+    -- (error 3823). Enforced instead in ExternalApiCallLogService.record() before write.
     CONSTRAINT ck_external_api_call_attempt CHECK (attempt_number BETWEEN 1 AND 3),
     CONSTRAINT ck_external_api_call_duration CHECK (duration_ms IS NULL OR duration_ms >= 0),
     INDEX idx_external_api_call_status_time (call_status, requested_at),
