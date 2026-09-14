@@ -1,12 +1,12 @@
 package com.teamproject.japan_newhire_rag_backend.rag.controller;
 
-import java.util.List;
-
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.teamproject.japan_newhire_rag_backend.domain.auth.api.CurrentUserContext;
@@ -18,6 +18,7 @@ import com.teamproject.japan_newhire_rag_backend.rag.application.RagQueryExecuti
 import com.teamproject.japan_newhire_rag_backend.rag.application.RagQueryResult;
 import com.teamproject.japan_newhire_rag_backend.rag.controller.dto.RagQuestionHistoryDetailResponse;
 import com.teamproject.japan_newhire_rag_backend.rag.controller.dto.RagQuestionHistoryItemResponse;
+import com.teamproject.japan_newhire_rag_backend.rag.controller.dto.RagQuestionHistoryPageResponse;
 import com.teamproject.japan_newhire_rag_backend.rag.controller.dto.RagQueryRequest;
 import com.teamproject.japan_newhire_rag_backend.rag.controller.dto.RagQueryResponse;
 
@@ -50,13 +51,14 @@ public class RagQueryController {
     }
 
     @GetMapping("/me")
-    public List<RagQuestionHistoryItemResponse> getMyQuestionHistory() {
+    public RagQuestionHistoryPageResponse getMyQuestionHistory(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
         CurrentUserContext currentUser = currentUserProvider.getCurrentUser();
-        List<RagQuestionHistoryItem> history =
-                ragQuestionHistoryService.getQuestionHistory(currentUser);
-        return history.stream()
-                .map(RagQuestionHistoryItemResponse::from)
-                .toList();
+        Page<RagQuestionHistoryItem> history =
+                ragQuestionHistoryService.getQuestionHistory(currentUser, keyword, page, size);
+        return RagQuestionHistoryPageResponse.from(history.map(RagQuestionHistoryItemResponse::from));
     }
 
     @GetMapping("/{questionId}")

@@ -3,6 +3,9 @@ package com.teamproject.japan_newhire_rag_backend.rag.application;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +26,8 @@ import com.teamproject.japan_newhire_rag_backend.rag.persistence.service.RagCita
 @Transactional(readOnly = true)
 public class RagQuestionHistoryService {
 
+    private static final int MAX_PAGE_SIZE = 100;
+
     private final RagQuestionRepository ragQuestionRepository;
     private final RagSearchRepository ragSearchRepository;
     private final RagAnswerRepository ragAnswerRepository;
@@ -39,12 +44,23 @@ public class RagQuestionHistoryService {
         this.ragCitationRepository = ragCitationRepository;
     }
 
-    public List<RagQuestionHistoryItem> getQuestionHistory(CurrentUserContext currentUser) {
+    public Page<RagQuestionHistoryItem> getQuestionHistory(
+            CurrentUserContext currentUser, String keyword, int page, int size) {
+        validatePage(page, size);
+        String normalizedKeyword = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
+        PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         return ragQuestionRepository
-                .findByCreatedByOrderByCreatedAtDesc(currentUser.appUserId())
-                .stream()
-                .map(this::toHistoryItem)
-                .toList();
+                .findAllByCreatedByAndKeyword(currentUser.appUserId(), normalizedKeyword, pageable)
+                .map(this::toHistoryItem);
+    }
+
+    private void validatePage(int page, int size) {
+        if (page < 0) {
+            throw new IllegalArgumentException("page must be at least 0");
+        }
+        if (size <= 0 || size > MAX_PAGE_SIZE) {
+            throw new IllegalArgumentException("size must be between 1 and " + MAX_PAGE_SIZE);
+        }
     }
 
     public RagQuestionHistoryDetail getQuestionDetail(
@@ -95,7 +111,9 @@ public class RagQuestionHistoryService {
                 question.getProcessingStatus(),
                 question.getCreatedAt(),
                 answer,
-                citations);
+                citations,
+                question.getFailureType(),
+                question.getFailureReason());
     }
 
     private RagCitationSnapshot toCitationSnapshot(RagCitation citation) {

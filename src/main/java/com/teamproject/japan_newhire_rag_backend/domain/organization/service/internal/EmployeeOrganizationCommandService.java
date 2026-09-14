@@ -1,5 +1,6 @@
 package com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal;
 
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.RelationType;
 import java.util.Map;
@@ -54,6 +55,7 @@ public class EmployeeOrganizationCommandService {
                 .orElseThrow(() -> new BusinessException(OrganizationErrorCode.DEPARTMENT_NOT_FOUND));
         JobGrade grade = grades.findById(request.jobGradeId()).filter(JobGrade::isActive)
                 .orElseThrow(() -> new BusinessException(OrganizationErrorCode.JOB_GRADE_NOT_FOUND));
+        EmploymentStatus previousStatus = employee.getEmploymentStatus();
         Long previousDepartment = employee.getDepartment().getDepartmentId();
         Long previousGrade = employee.getJobGrade().getJobGradeId();
         if (!Objects.equals(previousGrade, grade.getJobGradeId())) {
@@ -69,13 +71,18 @@ public class EmployeeOrganizationCommandService {
         // The manager validator must see the newly selected grade; all edits share this transaction.
         employee.changeOrganization(department, grade);
         managers.changeManager(employeeId, request.managerEmployeeId());
+        if (previousStatus != request.employmentStatus()) {
+            employee.changeEmploymentStatus(request.employmentStatus());
+            recordChange(employeeId, AuditActionType.EMPLOYEE_EMPLOYMENT_STATUS_CHANGED,
+                    "employmentStatus", previousStatus.name(), request.employmentStatus().name());
+        }
         recordChange(employeeId, AuditActionType.EMPLOYEE_DEPARTMENT_CHANGED, "departmentId",
                 previousDepartment, department.getDepartmentId());
         recordChange(employeeId, AuditActionType.EMPLOYEE_JOB_GRADE_CHANGED, "jobGradeId",
                 previousGrade, grade.getJobGradeId());
     }
 
-    private void recordChange(Long id, AuditActionType action, String key, Long before, Long after) {
+    private void recordChange(Long id, AuditActionType action, String key, Object before, Object after) {
         if (!Objects.equals(before, after)) {
             audit.record(new AuditLogRecordCommand(currentUser.getCurrentUser().appUserId(), action,
                     id, Map.of(key, before), Map.of(key, after), null, null));
