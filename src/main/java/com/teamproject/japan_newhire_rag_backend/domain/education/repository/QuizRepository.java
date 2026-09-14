@@ -1,5 +1,6 @@
 package com.teamproject.japan_newhire_rag_backend.domain.education.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -11,4 +12,7 @@ public interface QuizRepository extends JpaRepository<Quiz, Long> {
 
     @EntityGraph(attributePaths = {"course", "courseModule"})
     Optional<Quiz> findByQuizIdAndActiveTrue(Long quizId);
+
+    List<Quiz> findAllByCourse_CourseIdAndActiveTrueOrderByQuizIdAsc(
+            Long courseId);
 }

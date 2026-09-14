@@ -22,12 +22,15 @@ import com.teamproject.japan_newhire_rag_backend.domain.education.entity.CourseE
 import com.teamproject.japan_newhire_rag_backend.domain.education.entity.LearningProgress;
 import com.teamproject.japan_newhire_rag_backend.domain.education.repository.CourseEnrollmentRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.education.repository.LearningProgressRepository;
+import com.teamproject.japan_newhire_rag_backend.domain.education.entity.Quiz;
+import com.teamproject.japan_newhire_rag_backend.domain.education.repository.QuizRepository;
 
 @Service
 @Transactional(readOnly = true)
 public class MyCourseQueryService {
 
     private static final int MAX_PAGE_SIZE = 100;
+    private final QuizRepository quizRepository;
 
     private static final Sort COURSE_LIST_SORT =
             Sort.by(Sort.Direction.DESC, "courseEnrollmentId");
@@ -41,11 +44,13 @@ public class MyCourseQueryService {
             CourseEnrollmentRepository courseEnrollmentRepository,
             LearningProgressRepository learningProgressRepository,
             CurrentUserProvider currentUserProvider,
+            QuizRepository quizRepository,
             Clock clock
     ) {
         this.courseEnrollmentRepository = courseEnrollmentRepository;
         this.learningProgressRepository = learningProgressRepository;
         this.currentUserProvider = currentUserProvider;
+        this.quizRepository = quizRepository;
         this.clock = clock;
     }
 
@@ -104,9 +109,14 @@ public class MyCourseQueryService {
                         .findAllByCourseEnrollment_CourseEnrollmentIdAndCourseModule_ActiveTrueOrderByCourseModule_ModuleOrderAsc(
                                 enrollmentId);
 
+        List<Quiz> quizzes = quizRepository
+        .findAllByCourse_CourseIdAndActiveTrueOrderByQuizIdAsc(
+                enrollment.getCourse().getCourseId());
+
         return MyCourseDetailResponse.from(
                 enrollment,
                 progresses,
+                quizzes,
                 LocalDate.now(clock));
     }
 
