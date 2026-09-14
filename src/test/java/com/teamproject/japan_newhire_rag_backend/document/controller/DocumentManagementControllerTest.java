@@ -1,9 +1,13 @@
 package com.teamproject.japan_newhire_rag_backend.document.controller;
 
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -19,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
@@ -37,6 +42,7 @@ import com.teamproject.japan_newhire_rag_backend.document.access.controller.dto.
 import com.teamproject.japan_newhire_rag_backend.document.controller.dto.DocumentManagementDetailResponse;
 import com.teamproject.japan_newhire_rag_backend.document.controller.dto.DocumentManagementListItemResponse;
 import com.teamproject.japan_newhire_rag_backend.document.controller.dto.DocumentManagementVersionResponse;
+import com.teamproject.japan_newhire_rag_backend.document.service.DocumentDeletionService;
 import com.teamproject.japan_newhire_rag_backend.document.service.DocumentManagementQueryService;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.config.SecurityConfig;
 import com.teamproject.japan_newhire_rag_backend.domain.auth.enums.RoleType;
@@ -66,6 +72,7 @@ class DocumentManagementControllerTest {
 
     @Autowired WebApplicationContext applicationContext;
     @Autowired DocumentManagementQueryService queryService;
+    @Autowired DocumentDeletionService deletionService;
     @Autowired AccessTokenService accessTokenService;
     @Autowired InternalJwtAuthenticationQueryService authenticationQueryService;
 
@@ -73,7 +80,7 @@ class DocumentManagementControllerTest {
 
     @BeforeEach
     void setUp() {
-        reset(queryService, accessTokenService, authenticationQueryService);
+        reset(queryService, deletionService, accessTokenService, authenticationQueryService);
         SecurityContextHolder.clearContext();
         mockMvc = MockMvcBuilders.webAppContextSetup(applicationContext)
                 .apply(springSecurity()).build();
@@ -82,12 +89,15 @@ class DocumentManagementControllerTest {
     @Test
     void hrManagerCanReadDocumentListWithoutInternalFields() throws Exception {
         authenticateAs(RoleType.HR_MANAGER);
-        when(queryService.getDocuments()).thenReturn(List.of(listItem()));
+        when(queryService.getDocuments(isNull(), eq(0), eq(10)))
+                .thenReturn(new PageImpl<>(List.of(listItem())));
 
         mockMvc.perform(authorizedGet("/api/documents"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].documentName").value("Policy"))
-                .andExpect(jsonPath("$[0].latestVersionName").value("v2"))
+                .andExpect(jsonPath("$.content[0].documentName").value("Policy"))
+                .andExpect(jsonPath("$.content[0].latestVersionName").value("v2"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$..createdBy").doesNotExist())
                 .andExpect(jsonPath("$..storedFilePath").doesNotExist())
                 .andExpect(jsonPath("$..publishedBy").doesNotExist());
@@ -96,8 +106,19 @@ class DocumentManagementControllerTest {
     @Test
     void systemAdminCanReadDocumentList() throws Exception {
         authenticateAs(RoleType.SYSTEM_ADMIN);
-        when(queryService.getDocuments()).thenReturn(List.of());
+        when(queryService.getDocuments(isNull(), eq(0), eq(10))).thenReturn(new PageImpl<>(List.of()));
         mockMvc.perform(authorizedGet("/api/documents")).andExpect(status().isOk());
+    }
+
+    @Test
+    void passesKeywordAndPageQueryParametersThrough() throws Exception {
+        authenticateAs(RoleType.HR_MANAGER);
+        when(queryService.getDocuments(eq("연차"), eq(2), eq(5))).thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(authorizedGet("/api/documents?keyword=연차&page=2&size=5"))
+                .andExpect(status().isOk());
+
+        verify(queryService).getDocuments(eq("연차"), eq(2), eq(5));
     }
 
     @Test
@@ -162,9 +183,49 @@ class DocumentManagementControllerTest {
                 .andExpect(jsonPath("$.message").value("문서를 찾을 수 없습니다."));
     }
 
+    @Test
+    void hrManagerCanDeleteDocument() throws Exception {
+        authenticateAs(RoleType.HR_MANAGER);
+        mockMvc.perform(authorizedDelete("/api/documents/1")).andExpect(status().isNoContent());
+        verify(deletionService).deleteDocument(1L);
+    }
+
+    @Test
+    void systemAdminCanDeleteDocument() throws Exception {
+        authenticateAs(RoleType.SYSTEM_ADMIN);
+        mockMvc.perform(authorizedDelete("/api/documents/1")).andExpect(status().isNoContent());
+    }
+
+    @Test
+    void employeeCannotDeleteDocument() throws Exception {
+        authenticateAs(RoleType.EMPLOYEE);
+        mockMvc.perform(authorizedDelete("/api/documents/1")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void anonymousDeleteRequestIsUnauthorized() throws Exception {
+        mockMvc.perform(delete("/api/documents/1")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void deletingMissingDocumentReturnsNotFound() throws Exception {
+        authenticateAs(RoleType.HR_MANAGER);
+        org.mockito.Mockito.doThrow(new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "문서를 찾을 수 없습니다."))
+                .when(deletionService).deleteDocument(99L);
+
+        mockMvc.perform(authorizedDelete("/api/documents/99"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("문서를 찾을 수 없습니다."));
+    }
+
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder authorizedGet(
             String path) {
         return get(path).header("Authorization", "Bearer " + ACCESS_TOKEN);
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder authorizedDelete(
+            String path) {
+        return delete(path).header("Authorization", "Bearer " + ACCESS_TOKEN);
     }
 
     private void authenticateAs(RoleType role) {
@@ -219,6 +280,9 @@ class DocumentManagementControllerTest {
         @Bean ObjectMapper objectMapper() { return JsonMapper.builder().build(); }
         @Bean DocumentManagementQueryService queryService() {
             return mock(DocumentManagementQueryService.class);
+        }
+        @Bean DocumentDeletionService deletionService() {
+            return mock(DocumentDeletionService.class);
         }
         @Bean AccessTokenService accessTokenService() { return mock(AccessTokenService.class); }
         @Bean InternalJwtAuthenticationQueryService authenticationQueryService() {

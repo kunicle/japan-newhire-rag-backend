@@ -68,4 +68,8 @@ public class Document extends BaseEntity {
             Long createdBy) {
         return new Document(documentCategory, documentName, documentDescription, createdBy);
     }
+
+    public void softDelete() {
+        this.deletedAt = LocalDateTime.now();
+    }
 }

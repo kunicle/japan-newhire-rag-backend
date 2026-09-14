@@ -5,7 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
@@ -15,6 +19,10 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessException;
 import com.teamproject.japan_newhire_rag_backend.document.access.entity.DocumentAccessDepartment;
@@ -62,11 +70,11 @@ class DocumentManagementQueryServiceTest {
 
     @Test
     void returnsEmptyDocumentList() {
-        when(documentRepository
-                .findByDocumentStatusAndDeletedAtIsNullOrderByCreatedAtDesc("ACTIVE"))
-                .thenReturn(List.of());
+        when(documentRepository.findAllByDocumentStatusAndKeyword(
+                eq("ACTIVE"), isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
 
-        assertTrue(service.getDocuments().isEmpty());
+        assertTrue(service.getDocuments(null, 0, 10).isEmpty());
     }
 
     @Test
@@ -77,7 +85,7 @@ class DocumentManagementQueryServiceTest {
         DocumentVersion newer = version(12L, document, "v2", LocalDateTime.of(2026, 2, 1, 0, 0));
         stubList(document, category, List.of(older, newer));
 
-        DocumentManagementListItemResponse result = service.getDocuments().get(0);
+        DocumentManagementListItemResponse result = service.getDocuments(null, 0, 10).getContent().get(0);
 
         assertEquals(10L, result.documentCategoryId());
         assertEquals("POLICY", result.categoryCode());
@@ -95,7 +103,59 @@ class DocumentManagementQueryServiceTest {
                 version(20L, document, "v20", sameTime),
                 version(21L, document, "v21", sameTime)));
 
-        assertEquals(21L, service.getDocuments().get(0).latestVersionId());
+        assertEquals(21L, service.getDocuments(null, 0, 10).getContent().get(0).latestVersionId());
+    }
+
+    @Test
+    void normalizesBlankOrNullKeywordToNullForFullResults() {
+        when(documentRepository.findAllByDocumentStatusAndKeyword(
+                eq("ACTIVE"), isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        service.getDocuments("   ", 0, 10);
+
+        verify(documentRepository).findAllByDocumentStatusAndKeyword(
+                eq("ACTIVE"), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    void passesTrimmedKeywordToRepository() {
+        when(documentRepository.findAllByDocumentStatusAndKeyword(
+                eq("ACTIVE"), eq("policy"), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        service.getDocuments("  policy  ", 0, 10);
+
+        verify(documentRepository).findAllByDocumentStatusAndKeyword(
+                eq("ACTIVE"), eq("policy"), any(Pageable.class));
+    }
+
+    @Test
+    void sortsByCreatedAtDescendingAndAppliesRequestedPageAndSize() {
+        when(documentRepository.findAllByDocumentStatusAndKeyword(
+                eq("ACTIVE"), isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        service.getDocuments(null, 2, 5);
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(documentRepository).findAllByDocumentStatusAndKeyword(
+                eq("ACTIVE"), isNull(), pageableCaptor.capture());
+        Pageable pageable = pageableCaptor.getValue();
+        assertEquals(2, pageable.getPageNumber());
+        assertEquals(5, pageable.getPageSize());
+        assertEquals(Sort.by(Sort.Direction.DESC, "createdAt"), pageable.getSort());
+    }
+
+    @Test
+    void rejectsNegativePage() {
+        assertThrows(IllegalArgumentException.class, () -> service.getDocuments(null, -1, 10));
+    }
+
+    @Test
+    void rejectsSizeOutOfRange() {
+        assertThrows(IllegalArgumentException.class, () -> service.getDocuments(null, 0, 0));
+        assertThrows(IllegalArgumentException.class, () -> service.getDocuments(null, 0, 101));
     }
 
     @Test
@@ -171,9 +231,9 @@ class DocumentManagementQueryServiceTest {
             Document document,
             DocumentCategory category,
             List<DocumentVersion> versions) {
-        when(documentRepository
-                .findByDocumentStatusAndDeletedAtIsNullOrderByCreatedAtDesc("ACTIVE"))
-                .thenReturn(List.of(document));
+        when(documentRepository.findAllByDocumentStatusAndKeyword(
+                eq("ACTIVE"), isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(document)));
         when(categoryRepository.findAllById(List.of(10L))).thenReturn(List.of(category));
         when(versionRepository.findByDocument_DocumentIdIn(List.of(1L))).thenReturn(versions);
     }

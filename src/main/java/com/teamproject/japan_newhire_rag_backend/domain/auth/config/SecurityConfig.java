@@ -108,6 +108,8 @@ public class SecurityConfig {
                         .hasAnyRole("HR_MANAGER", "SYSTEM_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/documents", "/api/documents/*")
                         .hasAnyRole("HR_MANAGER", "SYSTEM_ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/documents/*")
+                        .hasAnyRole("HR_MANAGER", "SYSTEM_ADMIN")
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/documents/*/versions/*/audit-events")
