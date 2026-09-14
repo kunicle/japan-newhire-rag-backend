@@ -1,6 +1,13 @@
 -- Manual production migration for D system operations. Do not execute full schema scripts.
 -- Prerequisites: app_user, ai_model, rag_question and document_processing_job already exist.
 -- Run 20260911_d_system_operations_precheck.sql and resolve duplicate notification events manually first.
+--
+-- external_api_call_log intentionally has no CHECK enforcing that rag_question_id or
+-- document_processing_job_id is present: MySQL 8.0 rejects a CHECK constraint that
+-- references a column also bound by a foreign key with ON DELETE SET NULL (error 3823),
+-- which both of those columns are. The same "at least one must be set" invariant is
+-- enforced in application code by ExternalApiCallLogService.record() before any row is
+-- ever written, so no DB-level gap is introduced by omitting it here.
 
 CREATE TABLE external_api_call_log (
     external_api_call_log_id BIGINT NOT NULL AUTO_INCREMENT,
@@ -21,7 +28,6 @@ CREATE TABLE external_api_call_log (
     CONSTRAINT fk_external_api_call_log_model FOREIGN KEY (ai_model_id) REFERENCES ai_model (ai_model_id) ON DELETE RESTRICT,
     CONSTRAINT fk_external_api_call_log_question FOREIGN KEY (rag_question_id) REFERENCES rag_question (rag_question_id) ON DELETE SET NULL,
     CONSTRAINT fk_external_api_call_log_job FOREIGN KEY (document_processing_job_id) REFERENCES document_processing_job (document_processing_job_id) ON DELETE SET NULL,
-    CONSTRAINT ck_external_api_call_context CHECK (rag_question_id IS NOT NULL OR document_processing_job_id IS NOT NULL),
     CONSTRAINT ck_external_api_call_attempt CHECK (attempt_number BETWEEN 1 AND 3),
     CONSTRAINT ck_external_api_call_duration CHECK (duration_ms IS NULL OR duration_ms >= 0),
     INDEX idx_external_api_call_status_time (call_status, requested_at),
