@@ -1,7 +1,8 @@
 -- Development-only document category seed for local E2E testing.
 -- Run manually; this is not an application startup script or a Flyway migration.
 
-USE japan_newhire_rag;
+
+SET NAMES utf8mb4;
 
 INSERT INTO document_category (
     category_code,

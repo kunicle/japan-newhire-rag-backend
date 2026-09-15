@@ -2,7 +2,6 @@
 -- Review and execute manually. This file is not a Flyway migration.
 -- Tables are added only after their schema is confirmed.
 
-USE japan_newhire_rag;
 
 CREATE TABLE ai_model (
     ai_model_id BIGINT NOT NULL AUTO_INCREMENT,

@@ -2,7 +2,6 @@
 -- Apply a-domain-schema.sql before running this file. Run manually; this is not
 -- an application startup script or a Flyway migration.
 
-USE japan_newhire_rag;
 
 INSERT INTO role (role_code, role_name, role_description, is_active)
 SELECT 'EMPLOYEE', 'Employee', 'Standard employee role', TRUE

@@ -2,7 +2,6 @@
 -- Execute after a-domain-schema.sql because audit_log references app_user.
 -- Review and execute manually. This file is not a Flyway migration.
 
-USE japan_newhire_rag;
 
 CREATE TABLE audit_log (
     audit_log_id BIGINT NOT NULL AUTO_INCREMENT,
