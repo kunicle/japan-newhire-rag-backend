@@ -1,7 +1,6 @@
 -- A domain schema for MySQL 8.x
 -- Review and execute manually. This file is not a Flyway migration.
 
-USE japan_newhire_rag;
 
 CREATE TABLE app_user (
     app_user_id BIGINT NOT NULL AUTO_INCREMENT,

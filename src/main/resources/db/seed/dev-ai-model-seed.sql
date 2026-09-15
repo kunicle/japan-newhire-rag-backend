@@ -2,7 +2,6 @@
 -- Run manually; this is not an application startup script or a Flyway migration.
 -- Exactly one ACTIVE default EMBEDDING model is required.
 
-USE japan_newhire_rag;
 
 INSERT INTO ai_model (
     provider_name,
