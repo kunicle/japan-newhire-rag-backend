@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Positive;
 
 public record NewHireProvisioningRequest(
         @NotBlank @Email @Size(max = 100) String email,
@@ -14,6 +15,7 @@ public record NewHireProvisioningRequest(
         @NotBlank @Size(max = 50) String employeeName,
         @NotNull Long departmentId,
         @NotNull Long jobGradeId,
-        @NotNull LocalDate hireDate
+        @NotNull LocalDate hireDate,
+        @Positive Long managerEmployeeId
 ) {
 }

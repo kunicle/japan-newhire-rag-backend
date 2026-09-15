@@ -1,6 +1,7 @@
 package com.teamproject.japan_newhire_rag_backend.domain.organization.service.internal;
 
 import java.time.Clock;
+import com.teamproject.japan_newhire_rag_backend.domain.organization.enums.EmploymentStatus;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -73,6 +74,7 @@ public class DirectManagerCommandService {
                         OrganizationErrorCode.EMPLOYEE_NOT_FOUND));
         Employee manager = managerEmployeeId == null ? null : employeeRepository.findById(managerEmployeeId)
                 .filter(value -> value.getDeletedAt() == null)
+                .filter(value -> value.getEmploymentStatus() != EmploymentStatus.RETIRED)
                 .orElseThrow(() -> new BusinessException(
                         OrganizationErrorCode.MANAGER_NOT_FOUND));
 

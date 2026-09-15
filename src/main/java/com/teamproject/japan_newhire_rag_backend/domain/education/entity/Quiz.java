@@ -45,6 +45,9 @@ public class Quiz extends BaseEntity {
     @Column(name = "max_attempt_count")
     private Integer maxAttemptCount;
 
+    @Column(name = "is_required", nullable = false)
+    private boolean required = true;
+
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
@@ -59,12 +62,32 @@ public class Quiz extends BaseEntity {
             Integer maxAttemptCount,
             Long createdBy
     ) {
+        return create(
+                course,
+                courseModule,
+                quizTitle,
+                passingScore,
+                maxAttemptCount,
+                true,
+                createdBy);
+    }
+
+    public static Quiz create(
+            Course course,
+            CourseModule courseModule,
+            String quizTitle,
+            BigDecimal passingScore,
+            Integer maxAttemptCount,
+            boolean required,
+            Long createdBy
+    ) {
         Quiz quiz = new Quiz();
         quiz.course = course;
         quiz.courseModule = courseModule;
         quiz.quizTitle = quizTitle;
         quiz.passingScore = passingScore;
         quiz.maxAttemptCount = maxAttemptCount;
+        quiz.required = required;
         quiz.active = true;
         quiz.createdBy = createdBy;
         return quiz;

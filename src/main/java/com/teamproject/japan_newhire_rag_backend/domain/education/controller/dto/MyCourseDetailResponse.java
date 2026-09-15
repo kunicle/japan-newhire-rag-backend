@@ -8,6 +8,7 @@ import java.util.List;
 import com.teamproject.japan_newhire_rag_backend.domain.education.entity.Course;
 import com.teamproject.japan_newhire_rag_backend.domain.education.entity.CourseEnrollment;
 import com.teamproject.japan_newhire_rag_backend.domain.education.entity.LearningProgress;
+import com.teamproject.japan_newhire_rag_backend.domain.education.entity.Quiz;
 import com.teamproject.japan_newhire_rag_backend.domain.education.enums.EnrollmentStatus;
 
 public record MyCourseDetailResponse(
@@ -22,12 +23,14 @@ public record MyCourseDetailResponse(
         BigDecimal progressRate,
         EnrollmentStatus status,
         LocalDateTime completedAt,
-        List<MyCourseModuleResponse> modules
+        List<MyCourseModuleResponse> modules,
+        List<MyCourseQuizSummaryResponse> quizzes
 ) {
 
     public static MyCourseDetailResponse from(
             CourseEnrollment enrollment,
             List<LearningProgress> progresses,
+            List<Quiz> quizzes,
             LocalDate today
     ) {
         Course course = enrollment.getCourse();
@@ -35,6 +38,10 @@ public record MyCourseDetailResponse(
         List<MyCourseModuleResponse> modules = progresses.stream()
                 .map(MyCourseModuleResponse::from)
                 .toList();
+
+        List<MyCourseQuizSummaryResponse> quizResponses = quizzes.stream()
+        .map(MyCourseQuizSummaryResponse::from)
+        .toList();
 
         return new MyCourseDetailResponse(
                 enrollment.getCourseEnrollmentId(),
@@ -48,6 +55,8 @@ public record MyCourseDetailResponse(
                 enrollment.getProgressRate(),
                 enrollment.getEffectiveStatus(today),
                 enrollment.getCompletedAt(),
-                modules);
+                modules,
+                quizResponses
+        );
     }
 }

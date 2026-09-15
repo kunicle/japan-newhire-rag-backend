@@ -66,11 +66,6 @@ public class OnboardingManagementService {
         Set<Long> employeeIds = new LinkedHashSet<>(
                 organizationQueryService.findManagedEmployeeIds(
                         actor.employeeId()));
-        Set<Long> validNewHireEmployeeIds = Set.copyOf(
-                organizationQueryService
-                        .findValidNewHireEmployeeIds());
-        employeeIds.retainAll(validNewHireEmployeeIds);
-
         if (employeeIds.isEmpty()) {
             return List.of();
         }

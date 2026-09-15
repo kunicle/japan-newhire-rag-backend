@@ -18,6 +18,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,7 +27,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import com.teamproject.japan_newhire_rag_backend.common.error.ErrorCode;
 import com.teamproject.japan_newhire_rag_backend.common.exception.BusinessException;
@@ -39,10 +39,14 @@ import com.teamproject.japan_newhire_rag_backend.domain.education.entity.Course;
 import com.teamproject.japan_newhire_rag_backend.domain.education.entity.CourseEnrollment;
 import com.teamproject.japan_newhire_rag_backend.domain.education.entity.CourseModule;
 import com.teamproject.japan_newhire_rag_backend.domain.education.entity.LearningProgress;
+import com.teamproject.japan_newhire_rag_backend.domain.education.entity.Quiz;
 import com.teamproject.japan_newhire_rag_backend.domain.education.enums.EnrollmentStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.education.enums.LearningCompletionStatus;
 import com.teamproject.japan_newhire_rag_backend.domain.education.repository.CourseEnrollmentRepository;
 import com.teamproject.japan_newhire_rag_backend.domain.education.repository.LearningProgressRepository;
+import com.teamproject.japan_newhire_rag_backend.domain.education.repository.QuizRepository;
+
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class MyCourseQueryServiceTest {
@@ -65,6 +69,9 @@ class MyCourseQueryServiceTest {
     @Mock
     private CurrentUserProvider currentUserProvider;
 
+    @Mock
+    private QuizRepository quizRepository;
+
     private MyCourseQueryService myCourseQueryService;
 
     @BeforeEach
@@ -73,12 +80,14 @@ class MyCourseQueryServiceTest {
                 courseEnrollmentRepository,
                 learningProgressRepository,
                 currentUserProvider,
+                quizRepository,
                 FIXED_CLOCK);
     }
 
     @Test
     void getsOnlyCurrentEmployeesCoursesWithEffectiveOverdueStatus() {
         stubCurrentUser();
+
         CourseEnrollment enrollment = enrollment(
                 100L,
                 EMPLOYEE_ID,
@@ -115,6 +124,7 @@ class MyCourseQueryServiceTest {
     @Test
     void returnsEmptyPageWhenEmployeeHasNoCourses() {
         stubCurrentUser();
+
         when(courseEnrollmentRepository.findAllByEmployeeId(
                 eq(EMPLOYEE_ID),
                 any(Pageable.class)))
@@ -133,8 +143,9 @@ class MyCourseQueryServiceTest {
     }
 
     @Test
-    void getsOwnedCourseDetailWithActiveModulesInRepositoryOrder() {
+    void getsOwnedCourseDetailWithActiveModulesAndQuizzesInRepositoryOrder() {
         stubCurrentUser();
+
         CourseEnrollment enrollment = enrollment(
                 100L,
                 EMPLOYEE_ID,
@@ -153,6 +164,16 @@ class MyCourseQueryServiceTest {
                 module(201L, 2, false),
                 LearningCompletionStatus.NOT_STARTED);
 
+        Quiz firstQuiz = quiz(
+                300L,
+                enrollment.getCourse(),
+                "Company basics quiz");
+
+        Quiz secondQuiz = quiz(
+                301L,
+                enrollment.getCourse(),
+                "Security basics quiz");
+
         when(courseEnrollmentRepository
                 .findByCourseEnrollmentId(100L))
                 .thenReturn(Optional.of(enrollment));
@@ -161,6 +182,11 @@ class MyCourseQueryServiceTest {
                 .findAllByCourseEnrollment_CourseEnrollmentIdAndCourseModule_ActiveTrueOrderByCourseModule_ModuleOrderAsc(
                         100L))
                 .thenReturn(List.of(first, second));
+
+        when(quizRepository
+                .findAllByCourse_CourseIdAndActiveTrueOrderByQuizIdAsc(
+                        50L))
+                .thenReturn(List.of(firstQuiz, secondQuiz));
 
         MyCourseDetailResponse response =
                 myCourseQueryService.getMyCourse(100L);
@@ -181,11 +207,53 @@ class MyCourseQueryServiceTest {
 
         assertThat(response.modules().get(0).completionStatus())
                 .isEqualTo(LearningCompletionStatus.COMPLETED);
+
+        assertThat(response.quizzes())
+                .extracting(quiz -> quiz.quizId())
+                .containsExactly(300L, 301L);
+
+        assertThat(response.quizzes())
+                .extracting(quiz -> quiz.quizTitle())
+                .containsExactly(
+                        "Company basics quiz",
+                        "Security basics quiz");
+    }
+
+    @Test
+    void returnsEmptyQuizListWhenCourseHasNoActiveQuiz() {
+        stubCurrentUser();
+
+        CourseEnrollment enrollment = enrollment(
+                100L,
+                EMPLOYEE_ID,
+                EnrollmentStatus.NOT_STARTED,
+                TODAY.plusDays(5));
+
+        when(courseEnrollmentRepository
+                .findByCourseEnrollmentId(100L))
+                .thenReturn(Optional.of(enrollment));
+
+        when(learningProgressRepository
+                .findAllByCourseEnrollment_CourseEnrollmentIdAndCourseModule_ActiveTrueOrderByCourseModule_ModuleOrderAsc(
+                        100L))
+                .thenReturn(List.of());
+
+        when(quizRepository
+                .findAllByCourse_CourseIdAndActiveTrueOrderByQuizIdAsc(
+                        50L))
+                .thenReturn(List.of());
+
+        MyCourseDetailResponse response =
+                myCourseQueryService.getMyCourse(100L);
+
+        assertThat(response.modules()).isEmpty();
+        assertThat(response.quizzes()).isEmpty();
     }
 
     @Test
     void rejectsAccessToAnotherEmployeesEnrollment() {
         stubCurrentUser();
+
         CourseEnrollment enrollment = enrollment(
                 100L,
                 999L,
@@ -204,12 +272,15 @@ class MyCourseQueryServiceTest {
                                 exception.getErrorCode())
                                 .isEqualTo(ErrorCode.FORBIDDEN));
 
-        verifyNoInteractions(learningProgressRepository);
+        verifyNoInteractions(
+                learningProgressRepository,
+                quizRepository);
     }
 
     @Test
     void throwsNotFoundWhenEnrollmentDoesNotExist() {
         stubCurrentUser();
+
         when(courseEnrollmentRepository
                 .findByCourseEnrollmentId(404L))
                 .thenReturn(Optional.empty());
@@ -223,7 +294,9 @@ class MyCourseQueryServiceTest {
                                 .isEqualTo(
                                         ErrorCode.RESOURCE_NOT_FOUND));
 
-        verifyNoInteractions(learningProgressRepository);
+        verifyNoInteractions(
+                learningProgressRepository,
+                quizRepository);
     }
 
     @Test
@@ -261,6 +334,7 @@ class MyCourseQueryServiceTest {
             LocalDate dueDate
     ) {
         Course course = newEntity(Course.class);
+
         set(course, "courseId", 50L);
         set(course, "courseName", "New hire course");
         set(course, "courseDescription", "Course description");
@@ -319,10 +393,28 @@ class MyCourseQueryServiceTest {
         return progress;
     }
 
+    private Quiz quiz(
+            Long quizId,
+            Course course,
+            String quizTitle
+    ) {
+        Quiz quiz = Quiz.create(
+                course,
+                null,
+                quizTitle,
+                new BigDecimal("80.00"),
+                3,
+                1L);
+
+        set(quiz, "quizId", quizId);
+        return quiz;
+    }
+
     private static <T> T newEntity(Class<T> type) {
         try {
             Constructor<T> constructor =
                     type.getDeclaredConstructor();
+
             constructor.setAccessible(true);
             return constructor.newInstance();
         } catch (ReflectiveOperationException exception) {

@@ -168,7 +168,7 @@ class OnboardingAssignmentServiceTest {
 
 
     @Test
-    void assignManagedCreatesAssignmentsForDirectNewHires() {
+    void assignManagedCreatesAssignmentsForDirectEmployees() {
         stubManager();
 
         when(organizationQueryService
@@ -176,9 +176,6 @@ class OnboardingAssignmentServiceTest {
                 .thenReturn(List.of(1L, 2L));
         when(taskRepository.findById(10L))
                 .thenReturn(Optional.of(activeTask()));
-        when(organizationQueryService
-                .findValidNewHireEmployeeIds())
-                .thenReturn(List.of(1L, 2L));
         when(assignmentRepository
                 .findByOnboardingTask_OnboardingTaskIdAndEmployeeIdIn(
                         10L,
