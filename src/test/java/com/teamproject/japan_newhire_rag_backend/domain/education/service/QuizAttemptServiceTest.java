@@ -303,6 +303,29 @@ class QuizAttemptServiceTest {
     }
 
     @Test
+    void rejectsQuizFromAnotherCourse() {
+        Course anotherCourse = mock(Course.class);
+        when(anotherCourse.getCourseId()).thenReturn(6L);
+        when(enrollment.getCourse()).thenReturn(anotherCourse);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.submit(
+                        1L,
+                        request(101L, 201L)));
+
+        assertEquals(
+                ErrorCode.RESOURCE_NOT_FOUND,
+                exception.getErrorCode());
+
+        verify(quizQuestionRepository, never())
+                .findAllByQuiz_QuizIdAndActiveTrueOrderByQuestionOrderAsc(
+                        any());
+        verify(quizAttemptRepository, never())
+                .save(any(QuizAttempt.class));
+    }
+
+    @Test
     void rejectsMissingQuestionAnswer() {
         QuizAttemptSubmitRequest incomplete =
                 new QuizAttemptSubmitRequest(
